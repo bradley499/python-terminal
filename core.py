@@ -68,16 +68,17 @@ class terminal_system():
         return list_files
 
     def get_hostname(self):
+        default = "user"
         try:
             with open("device.json","r") as device_details:
                 try:
                     device_details = json.loads(device_details.read())
                     return device_details["name"]
                 except:
-                    return ""
+                    return default
         except:
-            return ""
-        return ""
+            return default
+        return default
 
     def change_directory(self, args=[]):
         if len(args) > 0:
@@ -230,6 +231,9 @@ class terminal_system():
         for dir_del in dir_listings:
             dir_delete_default_string = dir_del
             dir_del_default_string = os.path.abspath(dir_delete_default_string).split("/")[1:]
+            if current_base_dir == dir_del_default_string:
+                response.append()
+                continue
             print(dir_del_default_string)
             dir_string = ""
             dir_deviate_sub_name = ""
