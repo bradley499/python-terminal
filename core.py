@@ -354,7 +354,7 @@ def terminal_parse(command = "", output = True, terminal = ""):
 
 terminal = terminal_system()
 
-for x in range(15):
+while True:
     response = (terminal_parse(input(terminal.get_hostname() + ":" + terminal.get_cwd() + "$ "),True,terminal))
     if not response in ["",None] :
         print(response)
