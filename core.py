@@ -2,6 +2,7 @@
 
 import os
 import json
+import shlex
 
 class terminal_system():
     def __init__(self):
@@ -55,7 +56,9 @@ class terminal_system():
             if not show_hidden:
                 if files[x][0] == ".":
                     continue
-
+            if not qoutation:
+            	if len(files[x].split(" ")) > 1:
+	            	files[x] = "'" + files[x] + "'"
             if show_dirs and os.path.isdir(files[x]):
                 files[x] = files[x] + "/"
             if qoutation:
@@ -158,12 +161,12 @@ class terminal_system():
             dir_child_iteration = 1
             if self.change_directory([dir_string]) == None:
                 if len(dir_deviate_sub_name) == 0:
-                    if self.change_directory([self.get_cwd() + "/" + dir_deviate_destination_name]) != None:
-                        os.mkdir(self.get_cwd() + "/" + dir_deviate_destination_name)
-                        if verbose:
-                            response.append("mkdir: created directory '" + dir_deviate_destination_name + "'")
-                    else:
-                        response.append("mkdir: cannot create directory '" + dir_deviate_destination_name + "' as directory exists")
+                	if self.change_directory([self.get_cwd() + "/" + dir_deviate_destination_name]) != None:
+                		os.mkdir(self.get_cwd() + "/" + dir_deviate_destination_name)
+                		if verbose:
+                			response.append("mkdir: created directory '" + dir_deviate_destination_name + "'")
+                	else:
+                		response.append("mkdir: cannot create directory '" + dir_deviate_destination_name + "' as directory exists")
                 else:
                     dir_active_recent = "."
                     dir_creation_failed = False
@@ -232,9 +235,8 @@ class terminal_system():
             dir_delete_default_string = dir_del
             dir_del_default_string = os.path.abspath(dir_delete_default_string).split("/")[1:]
             if current_base_dir == dir_del_default_string:
-                response.append()
+                response.append("rmdir: failed to remove '" + self.get_cwd().split("/")[-1] + "' as the current directory cannot be deleted")
                 continue
-            print(dir_del_default_string)
             dir_string = ""
             dir_deviate_sub_name = ""
             dir_deviate_destination_name = ""
@@ -261,10 +263,6 @@ class terminal_system():
                 dir_child_iteration+=1
             del_dir = dir_string.split("/")[1:]
             small_relative_dir_creation = small_relative_dir_creation[1:]
-            print(small_relative_dir_creation)
-            print(dir_del_sub_name + " ##### " + "/".join(small_relative_dir_creation[1:]))
-            print(dir_string)
-            print(["/".join(dir_del_default_string)])
             if self.change_directory(["/"+"/".join(dir_del_default_string)]) == None:
                 small_relative_dir_creation.reverse()
                 directory_parent_naming = []
@@ -277,21 +275,14 @@ class terminal_system():
                 directory_parent_naming.reverse()
                 dir_del_tree.reverse()
                 dir_deletion_iteration = 0
-                print("_____________________________")
-                print(small_relative_dir_creation)
                 for dir_del_parent in dir_del_tree:
                     directory_contents = self.ls(["-a"])
                     if directory_contents != [".",".."]:
-                        response.append("rmdir: failed to remove '/" + "/".join(directory_parent_naming[dir_deletion_iteration]) + "' as directory is not empty")
+                        response.append("rmdir: failed to remove '/" + small_relative_dir_creation[dir_deletion_iteration] + "' as directory is not empty")
                     else:
                         self.change_directory([".."])
                         if verbose:
                             response.append("rmdir: removing directory '" + small_relative_dir_creation[dir_deletion_iteration] + "'")
-                        print(self.get_cwd())
-                        print("Parents children: ", self.ls(["-a"]))
-                        print("Deleting: ", dir_del_parent);
-                        print("Child verified existance: ", dir_del_parent in self.ls(["-a"]))
-                        print("existance: ", os.path.exists(dir_del_parent))
                         os.rmdir(self.get_cwd() + "/" + dir_del_parent)
                     dir_deletion_iteration+=1
                     if self.get_cwd() == os.path.abspath(dir_string):
@@ -299,10 +290,11 @@ class terminal_system():
                     elif not delete_directory_parent:
                         break;
             else:
-                print(small_relative_dir_creation)
                 if dir_del == "":
                     dir_del = "/"
-                response.append("rmdir: failed to remove '" + dir_del + "' as no file or directory exists1")
+                else:
+                	dir_del = "/".join(small_relative_dir_creation)
+                response.append("rmdir: failed to remove '" + dir_del + "' as no file or directory exists")
         current_base_dir = "/" + "/".join(current_base_dir)
         if self.get_cwd() != current_base_dir:
             self.change_directory([current_base_dir])
@@ -324,7 +316,7 @@ def terminal_parse(command = "", output = True, terminal = ""):
     if command.strip() == "":
         return ""
     else: 
-        command = command.strip().split(" ")
+        command = shlex.split(command.strip())
         command_bases = terminal.get_all_command_bases()
         if command[0] in command_bases:
             try:
@@ -334,6 +326,9 @@ def terminal_parse(command = "", output = True, terminal = ""):
                         return command_bases[command[0]][1][0] == None
                     if command_bases[command[0]][1][0] == "string":
                         return str(response)
+                    elif command_bases[command[0]][1][0] == "join":
+                        if response != None:
+                            return command_bases[command[0]][1][1].join(response)
                     elif command_bases[command[0]][1][0] == "join/void":
                         if response != None:
                             return command_bases[command[0]][1][1].join(response)
