@@ -4,19 +4,30 @@
 import os
 import json
 import shlex
+import threading
+import system
 
-class terminal_system():
+class core(threading.Thread):
     def __init__(self):
         self.set_all_command_bases()
         self.dir = False
         self.set_cwd(os.getcwd())
+        self.process_id = None
+        threading.Thread.__init__(self)
+
     def set_all_command_bases(self):
-        self.command_bases = {"pwd":[self.get_cwd,["string"]],"ls":[self.ls,["join"," "]],"hostname":[self.get_hostname,["string"]],"cd":[self.change_directory,["string/void"]],"mkdir":[self.create_directory,["join/void","\n"]],"rmdir":[self.remove_directory,["join/void","\n"]]}
+        self.command_bases = {"pwd":[self.get_cwd,["string"],False],"ls":[self.ls,["join"," "],False],"hostname":[self.get_hostname,["string"],False],"cd":[self.change_directory,["string/void"],False],"mkdir":[self.create_directory,["join/void","\n"],False],"rmdir":[self.remove_directory,["join/void","\n"],False]}
         return True
 
     def get_all_command_bases(self):
         self.set_all_command_bases()
         return self.command_bases
+
+    def set_proc(self,pid):
+    	self.process_id = pid
+
+    def get_proc(self):
+    	return self.process_id
 
     def set_cwd(self,directory=False):
         if directory == False:
@@ -157,7 +168,6 @@ class terminal_system():
                             small_relative_dir_creation.append(small_relative_dir_creation[-1] + "/" + dir_new_sub_name)
                         else:
                             small_relative_dir_creation.append(small_relative_dir_creation[-1] + dir_new_sub_name)
-
                 dir_child_iteration += 1
             dir_child_iteration = 1
             if self.change_directory([dir_string]) == None:
@@ -301,56 +311,47 @@ class terminal_system():
             self.change_directory([current_base_dir])
         return response
 
-
-
-
-        # small_relative_dir_creation first relative directory naming structure (duplicates occur)!
-
-
-
-
-        
-
-def terminal_parse(command = "", output = True, terminal = ""):
-    if terminal == False:
-        return "Error: no terminal handler was provided"
-    if command.strip() == "":
-        return ""
-    else: 
-        command = shlex.split(command.strip())
-        command_bases = terminal.get_all_command_bases()
-        if command[0] in command_bases:
-            try:
-                response = command_bases[command[0]][0](command[1:])
-                if output == True:
-                    if command_bases[command[0]][1][0] == "null":
-                        return command_bases[command[0]][1][0] == None
-                    if command_bases[command[0]][1][0] == "string":
-                        return str(response)
-                    elif command_bases[command[0]][1][0] == "join":
-                        if response != None:
-                            return command_bases[command[0]][1][1].join(response)
-                    elif command_bases[command[0]][1][0] == "join/void":
-                        if response != None:
-                            return command_bases[command[0]][1][1].join(response)
-                    elif command_bases[command[0]][1][0] == "string/void":
-                        if response != None:
-                            return str(response)
-                    else:
-                        return response
-                else:
-                    return response
-            except ValueError as e:
-                return "Error: invalid parameter '" + str(e) + "'"
-        else:
-            return "Command not found!"
+def terminal_parse(command = "", output = True, terminal = False):
+	if terminal == False:
+		return "Error: no terminal handler was provided"
+	if command.strip() == "":
+		return ""
+	else: 
+		command = shlex.split(command.strip(" "))
+		command_bases = terminal.get_all_command_bases()
+		if command[0] in command_bases:
+			try:
+				terminal.set_proc(system.proc.new(" ".join(command),output)[1])
+				pid = terminal.get_proc()
+				if command_bases[command[0]][2]:
+					threading.Thread(target=self.command_bases[command[0]][0](command[1:]))
+					return None
+				else:
+					response = command_bases[command[0]][0](command[1:])
+					if output == True:
+						if command_bases[command[0]][1][0] == "null":
+							return command_bases[command[0]][1][0] == None
+						if command_bases[command[0]][1][0] == "string":
+							return str(response)
+						elif command_bases[command[0]][1][0] == "join":
+							if response != None:
+								return command_bases[command[0]][1][1].join(response)
+						elif command_bases[command[0]][1][0] == "join/void":
+							if response != None:
+								return command_bases[command[0]][1][1].join(response)
+						elif command_bases[command[0]][1][0] == "string/void":
+							if response != None:
+								return str(response)
+						else:
+							return response
+					else:
+						return response
+			except ValueError as e:
+				return "Error: invalid parameter '" + str(e) + "'"
+		else:
+			return "Command not found!"
 
 
 
 
-terminal = terminal_system()
-
-while True:
-    response = (terminal_parse(input(terminal.get_hostname() + ":" + terminal.get_cwd() + "$ "),True,terminal))
-    if not response in ["",None] :
-        print(response)
+terminal = core()
