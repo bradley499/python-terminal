@@ -1,25 +1,6 @@
 #!/usr/bin/env python3
 # proc.py
 
-
-
-
-'''
-Dont have this in a thread, instead have the core.py in a thread and call to functions in here...
-
-Make these changes you idiot
-
-'''
-
-
-
-
-
-
-
-
-
-
 import time
 from threading import Thread
 class proc():
@@ -40,8 +21,6 @@ class proc():
 				return [True,new_process_id]
 			else:
 				return [False,"Resource temporarily unavailable"]
-
-			print(command)
 	def kill(self,pid=0):
 		if pid in self.get_all_process_ids():
 			self.end_processes.append(pid)
@@ -56,7 +35,6 @@ class proc():
 					return [False,"Process is still dying..."]
 				else:
 					return [False,"Unable to kill process"]
-			print(123456789012345678901234567890)
 			del self.processes[pid]
 			return [True,True]
 		else:
