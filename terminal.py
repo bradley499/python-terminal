@@ -12,8 +12,6 @@ def term_input():
 	except KeyboardInterrupt:
 		return EOFError
 
-print(terminal.set_input_method(term_input,0))
-
 while True:
     response = (core.terminal_parse(input(terminal.get_hostname() + ":" + terminal.get_cwd() + "$ "),True,terminal))
     if not response in ["",None] :
