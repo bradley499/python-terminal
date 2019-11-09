@@ -3,7 +3,7 @@ This is a project that emulates standard Linux/Unix commands along with associat
 
 This project is aimed to be used in an encapsulated environment (although it is not nessecary). And shall mimic basic/key Linux/Unix commands, the project is currently aiming to mimic the following commands (+ implemented / - not implemenetd yet):
  ```diff
- - cat 
+ + cat 
  + cd
  - exit
  - find

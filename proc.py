@@ -67,6 +67,7 @@ class proc():
 				if not output[2]:
 					print(output[0])
 				del outputs[0]
+			self.processes[pid][4] = outputs
 	def get_all_process_ids(self):
 		process_ids = []
 		for process_id in self.processes.keys():

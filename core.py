@@ -13,15 +13,36 @@ class core(threading.Thread):
 		self.dir = False
 		self.set_cwd(os.getcwd())
 		self.process_id = None
+		self.input_method_reference = [None,False]
 		threading.Thread.__init__(self)
 
-	def set_all_command_bases(self):
-		self.command_bases = {"pwd":[self.get_cwd,["string"],False],"ls":[self.ls,["join"," "],False],"hostname":[self.get_hostname,["string"],False],"cd":[self.change_directory,["string/void"],False],"mkdir":[self.create_directory,["join/void","\n"],False],"rmdir":[self.remove_directory,["join/void","\n"],False],"cp":[self.copy,["join/void","\n"],False],"mv":[self.move,["join/void","\n"],False]}
+	def set_all_command_bases(self, args=[]):
+		self.command_bases = {"pwd":[self.get_cwd,["string"],False],"ls":[self.ls,["join"," "],False],"hostname":[self.get_hostname,["string"],False],"cd":[self.change_directory,["string/void"],False],"mkdir":[self.create_directory,["join/void","\n"],False],"rmdir":[self.remove_directory,["join/void","\n"],False],"cat":[self.concatenate,["join","\n"],False],"cp":[self.copy,["join/void","\n"],False],"mv":[self.move,["join/void","\n"],False]}
 		return True
 
-	def get_all_command_bases(self):
+	def get_all_command_bases(self, args=[]):
 		self.set_all_command_bases()
 		return self.command_bases
+
+	def set_input_method(self,inputting_method = False, mode = -1):
+		if inputting_method != False and mode != -1:
+			if mode == 0:
+				if callable(inputting_method):
+					self.input_method_reference = [inputting_method, True]
+					return self.input_method_reference;
+				else:
+					return [ImportWarning("failed attempt to implement a non callable inputting mehod"),False];
+		else:
+			return [ImportWarning("failed to implement an input method from no prescribed source"),False];
+
+	def input_method(self,mode):
+		if mode == 0: # single line
+			if not self.input_method_reference[1]:
+				raise NotImplementedError("no input method defined2")
+			else:
+				return self.input_method_reference[0]()
+		else:
+			raise NotImplementedError("no input method defined1")
 
 	def set_proc(self,pid):
 		self.process_id = pid
@@ -85,7 +106,7 @@ class core(threading.Thread):
 			list_files.reverse()
 		return list_files
 
-	def get_hostname(self):
+	def get_hostname(self, args=[]):
 		default = "user"
 		try:
 			with open("device.json","r") as device_details:
@@ -157,6 +178,9 @@ class core(threading.Thread):
 					if copy_default_loc_final_base_delimiter not in directory_contents:
 						response.append(joint_command_type + ": cannot stat '" + copy_default_loc_raw + "' as no file or directory exists")
 						continue
+					elif not os.access(self.get_cwd() + "/" + copy_default_loc_final_base_delimiter, os.R_OK):
+						response.append(joint_command_type + ": cannot stat '" + copy_default_loc_raw + "' as permission is denied")
+						continue
 				else:
 					response.append(joint_command_type + ": cannot stat '" + copy_default_loc_raw + "' as no file or directory exists")
 					continue
@@ -224,11 +248,9 @@ class core(threading.Thread):
 							if "." in list(file_relational_tree.keys()):
 								for file in file_relational_tree["."]:
 									if not os.path.isfile(self.get_cwd() + "/" + file) or remove:
-										with open("/".join(copy_default_loc_absolute_full_path)+"/"+file,"rb") as file_contents:
-											with open(self.get_cwd() + "/" + file, "wb") as file_save:
-												file_save.write(file_contents.read())
-												if verbose:
-													response.append(prepend_output+"'" + "/".join(copy_default_loc_absolute_full_path)[len("/".join(copy_default_loc_absolute_full_path)) - len(copy_default_loc_final_base_delimiter):] + "/" + file + "' -> '" + relative_delivery_destination + "/" + file + "'")
+										self.concatenate(["/".join(copy_default_loc_absolute_full_path)+"/"+file,">",self.get_cwd()+"/"+file])
+										if verbose:
+											response.append(prepend_output+"'" + "/".join(copy_default_loc_absolute_full_path)[len("/".join(copy_default_loc_absolute_full_path)) - len(copy_default_loc_final_base_delimiter):] + "/" + file + "' -> '" + relative_delivery_destination + "/" + file + "'")
 										if remove:
 											os.remove("/".join(copy_default_loc_absolute_full_path)+"/"+file)
 									elif verbose:
@@ -244,49 +266,133 @@ class core(threading.Thread):
 								if sub_directory == directory[len("/".join(copy_default_loc_absolute_full_path)) + 1:]:
 									for file in files:
 										if not os.path.isfile(self.get_cwd() + "/" + file) or remove:
-											with open(directory+"/"+file,"rb") as file_contents:
-												with open(self.get_cwd() + "/" + file, "wb") as file_save:
-													file_save.write(file_contents.read())
-													if verbose:
-														response.append(prepend_output+"'" + directory[len("/".join(copy_default_loc_absolute_full_path)) - len(copy_default_loc_final_base_delimiter):] + "/" + file + "' -> '" + relative_delivery_destination + "/" + directory[len("/".join(copy_default_loc_absolute_full_path)) + 1:] + "/" + file + "'")
+											self.concatenate([directory+"/"+file,">",self.get_cwd() + "/" + file])
+											if verbose:
+												response.append(prepend_output+"'" + directory[len("/".join(copy_default_loc_absolute_full_path)) - len(copy_default_loc_final_base_delimiter):] + "/" + file + "' -> '" + relative_delivery_destination + "/" + directory[len("/".join(copy_default_loc_absolute_full_path)) + 1:] + "/" + file + "'")
 											if remove:
 												os.remove(directory+"/"+file,"rb")
 										elif verbose:
 											response.append("'" + directory[len("/".join(copy_default_loc_absolute_full_path)) - len(copy_default_loc_final_base_delimiter):] + "/" + file + "' -> IGNORED")
 			elif not os.path.isfile(destination) or remove:
-				with open("/".join(copy_default_loc_absolute_full_path),"rb") as file_contents:
-					with open(destination,"wb") as file_save:
-						file_save.write(file_contents.read())
-						if verbose:
-							response.append(prepend_output+"'" + copy_default_loc_raw + "' -> '" + relative_destination + "'")
+				self.concatenate(["/".join(copy_default_loc_absolute_full_path),">",destination])
+				if verbose:
+					response.append(prepend_output+"'" + copy_default_loc_raw + "' -> '" + relative_destination + "'")
 				if remove:
 					os.remove("/".join(copy_default_loc_absolute_full_path))
 		self.change_directory([current_base_dir])
 		return response
 
-
-
 	def concatenate(self, args=[], outputLength = True):
-		return False
-		'''
-		Not yet implemented
+		cat_values = []	
+		operation_to_file = []
+		output_type = False
+		line_count = False
+		end_of_line = False
+		show_tabulations = False
 		if len(args) >= 1:
+			get_next_output = False
+			output_type_type_verification = -1
 			for arg in args:
-				if not arg.startswith("-"):
-					dir_listings.append(arg)
-				else:
-					if arg == "":
-						arg_type = True
-					elif arg == "-p":
-						arg_type_2 = True
+				if arg.startswith("-"):
+					if arg == "-n":
+						line_count = True
+					elif arg == "-e":
+						end_of_line = True
+					elif arg == "-t":
+						show_tabulations = True
 					else:
 						raise ValueError(arg)
-		else:
-			return ["mkdir: missing operand"]
+				elif arg == ">":
+					output_type = "wb"
+					output_type_type_verification += 1
+					operation_to_file.append([cat_values,[],"wb"])
+					cat_values = []
+					get_next_output = True
+				elif arg == ">>":
+					output_type = "ab"
+					output_type_type_verification += 1
+					operation_to_file.append([cat_values,[],"ab"])
+					cat_values = []
+					get_next_output = True
+				elif get_next_output:
+					operation_to_file[output_type_type_verification][1].append(arg)
+					cat_values.append(arg)
+				elif arg == "<":
+					pass
+				else:
+					cat_values.append(arg)
+			if get_next_output:
+				if len(operation_to_file[-1][1]) == 0:
+					return ["cat: syntax error where output was expected"]
 		response = []
-		if len(dir_listings) == 0:
-			return ["mkdir: missing operand"]
-	'''
+		if output_type != False:
+			for to_file in operation_to_file:
+				if len(to_file) > 0:
+					output_type = to_file[2]
+					input_stream = []
+					if to_file[0] == []:
+						while True:
+							try:
+								input_stream_buffer = self.input_method(0)
+							except EOFError:
+								break
+							input_stream.append(bytes(input_stream_buffer + "\n","utf-8"))
+					else:
+						files = []
+						for file in to_file[0]:
+							file_relative = file
+							if not file.startswith("/"):
+								file = self.get_cwd() + "/" + file
+							file = os.path.abspath(file)
+							if os.path.isfile(file):
+								files.append(file)
+							else:
+								response.append("cat: unable to use file '" + file_relative + "' for input stream as it does not exists")
+						if len(response) > 0:
+							return response
+						else:
+							for file in files:
+								with open(file,"rb") as file:
+									for file_lines in file.readlines():
+										input_stream.append(file_lines)
+					for file in to_file[1]:
+						if not file.startswith("/"):
+							file = self.get_cwd() + "/" + file
+						file = os.path.abspath(file)
+						with open(file,output_type) as output_file:
+							for input_to_output in input_stream:
+								output_file.write(input_to_output)
+				else:
+					response.append("cat: syntax error where output was expected")
+		else:
+			if len(cat_values) > 0:
+				output_stream = []
+				output_error_stream = []
+				for file in cat_values:
+					file_relative = file
+					if not file.startswith("/"):
+						file = self.get_cwd() + "/" + file
+					file = os.path.abspath(file)
+					if not os.path.isfile(file):
+						output_error_stream.append("cat: unable to use file '" + file_relative + "' for input stream as it does not exists")
+					else:
+						with open(file,"r") as output_file:
+							for line in output_file.readlines():
+								line = line.rstrip()
+								if show_tabulations:
+									line = line.replace("\t","^I")
+								if end_of_line:
+									line = line + "$"
+								output_stream.append(line)
+				total_lines = len(output_stream)
+				total_lines_character_size = len(str(total_lines))
+				for line_num in range(total_lines):
+					if line_count:
+						response.append(((total_lines_character_size - len(str(line_num + 1)) + 1) * " ") + str(line_num + 1) + " " + output_stream[line_num])
+					else:
+						response.append(output_stream[line_num])
+				response.extend(output_error_stream)
+		return response
 
 	def change_directory(self, args=[]):
 		if len(args) > 0:
