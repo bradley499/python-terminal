@@ -7,7 +7,8 @@ This project is aimed to be used in an encapsulated environment (although it is 
  + cd
  - exit
  - find
- - head
+ + head
+ + tail
  - kill
  + ls
  + mkdir

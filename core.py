@@ -17,7 +17,7 @@ class core(threading.Thread):
 		threading.Thread.__init__(self)
 
 	def set_all_command_bases(self, args=[]):
-		self.command_bases = {"pwd":[self.get_cwd,["string"],False],"ls":[self.ls,["join"," "],False],"hostname":[self.get_hostname,["string"],False],"cd":[self.change_directory,["string/void"],False],"mkdir":[self.create_directory,["join/void","\n"],False],"rmdir":[self.remove_directory,["join/void","\n"],False],"cat":[self.concatenate,["join","\n"],False],"cp":[self.copy,["join/void","\n"],False],"mv":[self.move,["join/void","\n"],False]}
+		self.command_bases = {"pwd":[self.get_cwd,["string"],False],"ls":[self.ls,["join"," "],False],"hostname":[self.get_hostname,["string"],False],"cd":[self.change_directory,["string/void"],False],"mkdir":[self.create_directory,["join/void","\n"],False],"rmdir":[self.remove_directory,["join/void","\n"],False],"cat":[self.concatenate,["join","\n"],False],"head":[self.head,["join","\n"],False],"tail":[self.tail,["join","\n"],False],"cp":[self.copy,["join/void","\n"],False],"mv":[self.move,["join/void","\n"],False],"rm":[self.remove,["join/void","\n"],False]}
 		return True
 
 	def get_all_command_bases(self, args=[]):
@@ -282,13 +282,14 @@ class core(threading.Thread):
 		self.change_directory([current_base_dir])
 		return response
 
-	def concatenate(self, args=[], outputLength = True):
+	def concatenate(self, args=[]):
 		cat_values = []	
 		operation_to_file = []
 		output_type = False
 		line_count = False
 		end_of_line = False
 		show_tabulations = False
+		squeeze_blanks = False
 		if len(args) >= 1:
 			get_next_output = False
 			output_type_type_verification = -1
@@ -300,6 +301,8 @@ class core(threading.Thread):
 						end_of_line = True
 					elif arg == "-t":
 						show_tabulations = True
+					elif arg == "-s":
+						squeeze_blanks = True
 					else:
 						raise ValueError(arg)
 				elif arg == ">":
@@ -325,6 +328,7 @@ class core(threading.Thread):
 				if len(operation_to_file[-1][1]) == 0:
 					return ["cat: syntax error where output was expected"]
 		response = []
+		output_error_stream = []
 		if output_type != False:
 			for to_file in operation_to_file:
 				if len(to_file) > 0:
@@ -336,7 +340,10 @@ class core(threading.Thread):
 								input_stream_buffer = self.input_method(0)
 							except EOFError:
 								break
-							input_stream.append(bytes(input_stream_buffer + "\n","utf-8"))
+							if line_count:
+								input_stream.append(input_stream_buffer + "\n")
+							else:
+								input_stream.append(bytes(input_stream_buffer + "\n","utf-8"))
 					else:
 						files = []
 						for file in to_file[0]:
@@ -345,29 +352,62 @@ class core(threading.Thread):
 								file = self.get_cwd() + "/" + file
 							file = os.path.abspath(file)
 							if os.path.isfile(file):
-								files.append(file)
+								files.append([file,file_relative])
 							else:
 								response.append("cat: unable to use file '" + file_relative + "' for input stream as it does not exists")
 						if len(response) > 0:
 							return response
 						else:
 							for file in files:
-								with open(file,"rb") as file:
-									for file_lines in file.readlines():
-										input_stream.append(file_lines)
+								try:
+									with open(file[0],"rb") as file:
+										for file_lines in file.readlines():
+											input_stream.append(file_lines)
+								except Exception as e:
+									output_error_stream.append("cat: unable to read the file '" + file_raw_location[1] + "' as the encoding type is not dynamically supported")
+					previous_line = b''
 					for file in to_file[1]:
+						file_raw_location = file
 						if not file.startswith("/"):
 							file = self.get_cwd() + "/" + file
 						file = os.path.abspath(file)
-						with open(file,output_type) as output_file:
-							for input_to_output in input_stream:
-								output_file.write(input_to_output)
+						try:
+							with open(file,output_type) as output_file:
+								total_lines_character_size = len(str(len(input_stream)))
+								line_num = 0
+								for input_to_output in input_stream:
+									if show_tabulations:
+										input_to_output = bytes(input_to_output.decode("utf-8").replace("\t","^I"),"utf-8")
+									if end_of_line:
+
+										input_to_output = input_to_output.decode("utf-8").splitlines(True)
+										input_to_output[-1] = input_to_output[-1].splitlines(True)
+										default_input_to_output = input_to_output[-1][-1]
+										for escaped_character in ["\r\n","\r","\n"]:
+											input_to_output[-1][-1] = input_to_output[-1][-1].replace(escaped_character,"$"+escaped_character,1)
+											if default_input_to_output != input_to_output[-1][-1]:
+												break
+										if default_input_to_output == input_to_output[-1][-1]:
+											input_to_output[-1].append("$")
+										input_to_output[-1] = "".join(input_to_output[-1])
+										input_to_output = "".join(input_to_output)
+										input_to_output = bytes(input_to_output,"utf-8")
+									if not (squeeze_blanks and previous_line == input_to_output and len(input_stream) > 0 and len(input_to_output) >= 0):
+										if squeeze_blanks:
+											previous_line = input_to_output
+										if line_count:
+											output_file.write(b"".join([bytes(str(((total_lines_character_size - len(str(line_num + 1)) + 1) * " ") + str(line_num + 1) + " "),"utf-8"),input_to_output]))
+										else:
+											output_file.write(input_to_output)
+										line_num += 1
+						except Exception as e:
+							output_error_stream.append("cat: unable to write to file '" + file_raw_location + "' as the encoding type is not dynamically supported")
 				else:
 					response.append("cat: syntax error where output was expected")
 		else:
 			if len(cat_values) > 0:
 				output_stream = []
-				output_error_stream = []
+				previous_line = None
 				for file in cat_values:
 					file_relative = file
 					if not file.startswith("/"):
@@ -376,14 +416,21 @@ class core(threading.Thread):
 					if not os.path.isfile(file):
 						output_error_stream.append("cat: unable to use file '" + file_relative + "' for input stream as it does not exists")
 					else:
-						with open(file,"r") as output_file:
-							for line in output_file.readlines():
-								line = line.rstrip()
-								if show_tabulations:
-									line = line.replace("\t","^I")
-								if end_of_line:
-									line = line + "$"
-								output_stream.append(line)
+						try:
+							with open(file,"rb") as output_file:
+								for line in output_file.readlines():
+									line = line.decode("utf-8")
+									line = line.rstrip()
+									if show_tabulations:
+										line = line.replace("\t","^I")
+									if end_of_line:
+										line = line + "$"
+									if not (squeeze_blanks and previous_line == line and len(output_stream) > 0 and len(line) >= 0):
+										if squeeze_blanks:
+											previous_line = line
+										output_stream.append(line)
+						except Exception as e:
+							output_error_stream.append("cat: unable to read the file '" + file_relative + "' as the encoding type is not dynamically supported")
 				total_lines = len(output_stream)
 				total_lines_character_size = len(str(total_lines))
 				for line_num in range(total_lines):
@@ -391,7 +438,59 @@ class core(threading.Thread):
 						response.append(((total_lines_character_size - len(str(line_num + 1)) + 1) * " ") + str(line_num + 1) + " " + output_stream[line_num])
 					else:
 						response.append(output_stream[line_num])
-				response.extend(output_error_stream)
+		response.extend(output_error_stream)
+		return response
+
+	def tail(self,args=[]):
+		return self.head(args,True)
+
+	def head(self, args=[], reverse=False):
+		total_lines = 10
+		get_next_paramter = [False,False]
+		response = []
+		files = []
+		joint_command_type = "head"
+		if reverse:
+			joint_command_type = "tail"
+		for arg in args:
+			if get_next_paramter[0]:
+				if get_next_paramter[1] == "-n":
+					if arg.isdigit():
+						arg = int(arg)
+						if arg > 0:
+							total_lines = arg
+							continue
+				response.append(joint_command_type + ": invalid number of lines '" + arg + "'")
+				continue
+			if arg.startswith("-"):
+				if arg == "-n":
+					get_next_paramter = [True,arg]
+				else:
+					raise ValueError(arg)
+			else:
+				files.append(arg)
+		file_iteration = 0
+		for file in files:
+			file_raw_location = file
+			if not file.startswith("/"):
+				file = self.get_cwd() + "/" + file
+			file = os.path.abspath(file)
+			if not os.path.isfile(file):
+				if os.path.isdir(file):
+					response.append(joint_command_type + ": unable to read '" + file_raw_location + "' as it is a directory")
+				else:
+					response.append(joint_command_type + ": unable to read '" + file_raw_location + "' as no file or directory exists")
+			else:
+				file_contents = self.concatenate([file])
+				if len(files) > 1:
+					if file_iteration >= 1:
+						response.append("")
+					response.append("==> " + file_raw_location + " <==")
+				if reverse:
+					response.extend(file_contents[-total_lines:])
+				else:
+					response.extend(file_contents[:total_lines])
+			file_iteration += 1
 		return response
 
 	def change_directory(self, args=[]):
@@ -516,6 +615,12 @@ class core(threading.Thread):
 		if self.get_cwd() != current_base_dir:
 			self.change_directory([current_base_dir])
 		return response
+
+	def remove(self,args=[]):
+		'''
+		Not yet implemented!
+		'''
+		return False
 
 	def remove_directory(self,args=[]):
 		verbose = False
