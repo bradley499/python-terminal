@@ -17,7 +17,7 @@ class core(threading.Thread):
 		threading.Thread.__init__(self)
 
 	def set_all_command_bases(self, args=[]):
-		self.command_bases = {"pwd":[self.get_cwd,["string"],False],"ls":[self.ls,["join"," "],False],"hostname":[self.get_hostname,["string"],False],"cd":[self.change_directory,["string/void"],False],"mkdir":[self.create_directory,["join/void","\n"],False],"rmdir":[self.remove_directory,["join/void","\n"],False],"cat":[self.concatenate,["join","\n"],False],"head":[self.head,["join","\n"],False],"tail":[self.tail,["join","\n"],False],"cp":[self.copy,["join/void","\n"],False],"mv":[self.move,["join/void","\n"],False],"rm":[self.remove,["join/void","\n"],False]}
+		self.command_bases = {"pwd":[self.get_cwd,["string"],False],"ls":[self.ls,["join"," "],False],"hostname":[self.get_hostname,["string"],False],"cd":[self.change_directory,["string/void"],False],"mkdir":[self.create_directory,["join/void","\n"],False],"rmdir":[self.remove_directory,["join/void","\n"],False],"cat":[self.concatenate,["join","\n"],False],"head":[self.head,["join","\n"],False],"tail":[self.tail,["join","\n"],False],"cp":[self.copy,["join/void","\n"],False],"mv":[self.move,["join/void","\n"],False],"link":[self.link,["string"],False],"unlink":[self.unlink,["string"],False],"rm":[self.remove,["join/void","\n"],False]}
 		return True
 
 	def get_all_command_bases(self, args=[]):
@@ -55,6 +55,7 @@ class core(threading.Thread):
 			return False
 		else:
 			self.dir = directory
+			os.chdir(self.dir)
 			return self.dir;
 
 	def get_cwd(self, args = []):
@@ -95,7 +96,7 @@ class core(threading.Thread):
 			if not qoutation and not qouting_literal:
 				if len(files[x].split(" ")) > 1:
 					files[x] = "'" + files[x] + "'"
-			if show_dirs and os.path.isdir(files[x]):
+			if show_dirs and os.path.isdir(os.path.abspath(self.get_cwd()+"/"+files[x])):
 				files[x] = files[x] + "/"
 			if qoutation:
 				files[x] = "\"" + files[x] + "\""
@@ -616,6 +617,51 @@ class core(threading.Thread):
 			self.change_directory([current_base_dir])
 		return response
 
+	def link(self, files=[]):
+		if len(files) > 1:
+			if len(files) == 1:
+				return "link: missing operand after '" + files[0] + "'"
+			elif len(files) == 2:
+				files_raw = files
+				if not files[0].startswith("/"):
+					files[0] = os.path.abspath(files[0])
+				if os.path.exists(files[0]):
+					if os.path.isfile(files[0]):
+						if not files[1].startswith("/"):
+							files[1] = os.path.abspath(files[1])
+						if os.path.exists(files[1]):
+							return "link: cannot create link from '" + files_raw[0] + "' as the file '" + files_raw[1] + "' exists"
+						else:
+							os.link(files[0],files[1])
+							return None
+					elif os.path.isdir(files[0]):
+						return "link: cannot create link from '" + files_raw[0] + "' to '" + files_raw[1] + "'"
+				else:
+					return "link: cannot create link from '" + files_raw[0] + "' to '" + files_raw[1] + "' as no file exists"
+			else:
+				return "link: extra operand '" + files[2] + "'"
+		else:
+			return "link: missing operand"
+
+	def unlink(self,file=[]):
+		response = []
+		if len(file) > 1:
+			return "unlink: extra operand '" + file[1] + "'"
+		elif len(file) == 0:
+			return "unlink: missing operand"
+		else:
+			file = file[0]
+			if not file.startswith("/"):
+				file = os.path.abspath(file)
+			if os.path.exists(file):
+				if os.path.isfile(file):
+					os.unlink(file)
+					return None
+				else:
+					return "unlink: cannot unlink '" + file + "' as it is a directory"
+			else:
+				return "unlink: cannot unlink '" + file + "' as no file or directory"
+
 	def remove(self,args=[]):
 		'''
 		Not yet implemented!
@@ -740,7 +786,8 @@ def terminal_parse(command = "", output = True, terminal = False):
 						if command_bases[command[0]][1][0] == "null":
 							return command_bases[command[0]][1][0] == None
 						if command_bases[command[0]][1][0] == "string":
-							return str(response)
+							if response != None:
+								return str(response)
 						elif command_bases[command[0]][1][0] == "join":
 							if response != None:
 								return command_bases[command[0]][1][1].join(response)

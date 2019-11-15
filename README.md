@@ -13,6 +13,8 @@ This project is aimed to be used in an encapsulated environment (although it is 
  + ls
  + mkdir
  + rmdir
+ + link
+ + unlink
  - rm
  + mv
  + cp
