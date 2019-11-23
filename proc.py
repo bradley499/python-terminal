@@ -9,10 +9,21 @@ class proc():
 		self.pid_max = pid_max
 		self.end_processes = []
 		self.dying_processes = []
+		self.output_method_reference = [None,False]
 		self.new("_proc",True)
 	def run(self):
 		while True:
 			time.sleep(1)
+	def set_output_method(self,outputting_method = None):
+		if outputting_method != None:
+			if callable(outputting_method):
+				self.output_method_reference = [outputting_method, True]
+		return self.output_method_reference[1];
+	def output_method(self,output=""):
+		if self.output_method_reference[1]:
+			self.output_method_reference[0](output)
+		else:
+			raise NotImplementedError("no output method defined")
 	def new(self, command = False, foreground = True):
 		if command != False:
 			new_process_id = self.get_new_process_id()
@@ -46,6 +57,10 @@ class proc():
 			return True
 		else:
 			return False
+	def is_fg_type(self,pid):
+		if pid in self.get_all_process_ids():
+			return self.processes[pid][3]
+		return False
 	def end(self,pid):
 		if pid in self.dying_processes:
 			self.dying_processes.remove(pid)
@@ -65,7 +80,10 @@ class proc():
 			outputs = self.processes[pid][4]
 			for output in outputs:
 				if not output[2]:
-					print(output[0])
+					try:
+						self.output_method(output[0])
+					except NotImplementedError as err:
+						return err
 				del outputs[0]
 			self.processes[pid][4] = outputs
 	def get_all_process_ids(self):

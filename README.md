@@ -15,7 +15,7 @@ This project is aimed to be used in an encapsulated environment (although it is 
  + rmdir
  + link
  + unlink
- - rm
+ + rm
  + mv
  + cp
  - ps

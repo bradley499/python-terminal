@@ -13,7 +13,9 @@ class core(threading.Thread):
 		self.dir = False
 		self.set_cwd(os.getcwd())
 		self.process_id = None
-		self.input_method_reference = [None,False]
+		self.input_method_reference = [[None,False],[None,False]]
+		self.output_method_reference = [[None,False],[None,False]]
+		self.definition_complete = False
 		threading.Thread.__init__(self)
 
 	def set_all_command_bases(self, args=[]):
@@ -24,25 +26,76 @@ class core(threading.Thread):
 		self.set_all_command_bases()
 		return self.command_bases
 
+	def set_definition(self,complete = False):
+		self.definition_complete = complete
+		system.proc.set_output_method(self.output_method_reference[0][0])
+
+	def get_definition(self):
+		return self.definition_complete
+
 	def set_input_method(self,inputting_method = False, mode = -1):
 		if inputting_method != False and mode != -1:
 			if mode == 0:
 				if callable(inputting_method):
-					self.input_method_reference = [inputting_method, True]
-					return self.input_method_reference;
+					self.input_method_reference[0] = [inputting_method, True]
+					return self.input_method_reference[0];
 				else:
-					return [ImportWarning("failed attempt to implement a non callable inputting mehod"),False];
+					return [ImportWarning("failed attempt to implement a non callable inputting method"),False]
+			elif mode == 1:
+				if callable(inputting_method):
+					self.input_method_reference[1] = [inputting_method, True]
+					return self.input_method_reference[1];
+				else:
+					return [ImportWarning("failed attempt to implement a non callable inputting method"),False]
 		else:
-			return [ImportWarning("failed to implement an input method from no prescribed source"),False];
+			return [ImportWarning("failed to implement an input method from no prescribed source"),False]
 
-	def input_method(self,mode):
-		if mode == 0: # single line
-			if not self.input_method_reference[1]:
-				raise NotImplementedError("no input method defined2")
-			else:
-				return self.input_method_reference[0]()
+	def input_method(self,mode,additions=False):
+		if self.input_method_reference == [[None,False],[None,False]]:
+			raise NotImplementedError("no input method defined")
 		else:
-			raise NotImplementedError("no input method defined1")
+			if mode == 0: # single line
+				if self.input_method_reference[0][1]:
+					return self.input_method_reference[0][0]() or " "
+				else:
+					raise NotImplementedError("no input mehod defined")
+			elif mode == 1: # response value input
+				if self.input_method_reference[1][1]:
+					if not additions == False:
+						self.output_method(1,additions)
+					return self.input_method_reference[1][0]() or " "
+				else:
+					raise NotImplementedError("no input method defined")
+			else:
+				raise NotImplementedError("no input method defined")
+
+	def set_output_method(self,outputting_method = False, mode = -1):
+		if outputting_method != False and mode != -1:
+			if mode == 0:
+				if callable(outputting_method):
+					self.output_method_reference[0] = [outputting_method, True]
+					return self.output_method_reference[0];
+				else:
+					return [ImportWarning("failed attempt to implement a non callable outputting method"),False]
+			elif mode == 1:
+				if callable(outputting_method):
+					self.output_method_reference[1] = [outputting_method, True]
+					return self.output_method_reference[1];
+				else:
+					return [ImportWarning("failed attempt to implement a non callable outputting method"),False]
+		else:
+			return [ImportWarning("failed to implement an output method from no prescribed source"),False]
+
+	def output_method(self,mode=0,output=""):
+		if not self.output_method_reference[1]:
+			raise NotImplementedError("no output method defined")
+		else:
+			if mode == 0: # continuous
+				self.output_method_reference[0][0](output)
+			elif mode == 1: # non breaking output (typical input method is followed)
+				self.output_method_reference[1][0](output)
+			else:
+				raise NotImplementedError("no output method defined")
 
 	def set_proc(self,pid):
 		self.process_id = pid
@@ -67,14 +120,16 @@ class core(threading.Thread):
 		files = [".",".."]
 		reverse = False
 		show_dirs = False
-		show_hidden = False
+		show_all = False
 		comma = False
 		qoutation = False
 		qouting_literal = False
 		if len(args) >= 1:
 			for arg in args:
 				if arg == "-a":
-					show_hidden = True
+					show_all = True
+				elif arg == "-A":
+					files = []
 				elif arg == "-r":
 					reverse = True
 				elif arg == "-f":
@@ -90,7 +145,7 @@ class core(threading.Thread):
 		files = files + os.listdir(self.get_cwd())
 		list_files = []
 		for x in range(len(files)):
-			if not show_hidden:
+			if not show_all:
 				if files[x][0] == ".":
 					continue
 			if not qoutation and not qouting_literal:
@@ -137,7 +192,7 @@ class core(threading.Thread):
 				if not arg.startswith("-"):
 					copy_loc.append(arg)
 				else:
-					if arg == "-v":
+					if arg in ["-v","--verbose"]:
 						verbose = True
 					elif arg == "-r":
 						recursive = True
@@ -149,7 +204,7 @@ class core(threading.Thread):
 		if len(copy_loc) == 0:
 			return [joint_command_type + ": missing operand"]
 		elif len(copy_loc) < 2:
-			return [joint_command_type + ": missing destination file operand after " . copy_loc[0]]
+			return [joint_command_type + ": missing destination file operand after " + copy_loc[0]]
 		current_base_dir = self.get_cwd()
 		destination = copy_loc.pop()
 		relative_destination = destination
@@ -213,8 +268,6 @@ class core(threading.Thread):
 							files_directory_structure.append(file)
 						else:
 							files_static_locations.append(file)
-
-
 					relative_delivery_destination = relative_destination
 					self.change_directory([current_base_dir])
 					if self.change_directory([destination]) != None:
@@ -262,7 +315,8 @@ class core(threading.Thread):
 							response.append(joint_command_type + ": unable to copy the contents of the directory '" + directory[len("/".join(copy_default_loc_absolute_full_path)) + 1:] + "'")
 							continue
 						else:
-							response.append("'" + directory[len("/".join(copy_default_loc_absolute_full_path)) - len(copy_default_loc_final_base_delimiter):] + "' -> '" + relative_delivery_destination + "/" + directory[len("/".join(copy_default_loc_absolute_full_path)) + 1:] + "'")
+							if verbose:
+								response.append("'" + directory[len("/".join(copy_default_loc_absolute_full_path)) - len(copy_default_loc_final_base_delimiter):] + "' -> '" + relative_delivery_destination + "/" + directory[len("/".join(copy_default_loc_absolute_full_path)) + 1:] + "'")
 							for sub_directory, files in file_relational_tree.items():
 								if sub_directory == directory[len("/".join(copy_default_loc_absolute_full_path)) + 1:]:
 									for file in files:
@@ -522,9 +576,9 @@ class core(threading.Thread):
 				if not arg.startswith("-"):
 					dir_listings.append(arg)
 				else:
-					if arg == "-v":
+					if arg in ["-v","--verbose"]:
 						verbose = True
-					elif arg == "-p":
+					elif arg in ["-p","--parents"]:
 						create_directory_parents = True
 					else:
 						raise ValueError(arg)
@@ -663,10 +717,276 @@ class core(threading.Thread):
 				return "unlink: cannot unlink '" + file + "' as no file or directory"
 
 	def remove(self,args=[]):
-		'''
-		Not yet implemented!
-		'''
-		return False
+		force = False
+		prompt_every = False
+		prompt_3_plus = False
+		recursive = False
+		directory = False
+		verbose = False
+		to_remove = []
+		if len(args) >= 1:
+			for arg in args:
+				if not arg.startswith("-"):
+					to_remove.append(arg)
+				else:
+					if arg in ["-v","verbose"]:
+						verbose = True
+					elif arg in ["-f","--force"]:
+						force = True
+						prompt_every = False
+						prompt_3_plus = False
+					elif arg  == "-i" and not force:
+						prompt_every = True
+					elif arg == "-I" and not force:
+						prompt_3_plus = True
+					elif arg in ["-r","-R","--recursive"]:
+						recursive = True
+					elif arg in ["-d","--dir"]:
+						directory = True
+					else:
+						raise ValueError(arg)
+		else:
+			return ["rm: missing operand"]
+		response = []
+		if len(to_remove) == 0:
+			return ["rm: missing operand"]
+		else:
+			to_remove_tree = []
+			for remove in to_remove:
+				file_raw_location = remove
+				if not remove.startswith("/"):
+					remove = os.path.abspath(remove)
+				if remove.endswith("*"):
+					remove = remove.split("/")
+					if remove[-1] == "*":
+						remove.pop()
+					if remove == [""]:
+						remove = "/"
+					else:
+						remove = "/".join(remove)
+				if os.path.exists(remove):
+					if os.path.isdir(remove):
+						to_remove_tree_rel = []
+						if recursive:
+							to_remove_tree_rel.extend([ 
+								[os.path.abspath(os.path.join(parent, name)),os.path.isdir(os.path.join(parent, name))]
+								for (parent, subdirs, files) in os.walk(remove)
+								for name in files + subdirs
+							])
+						else:
+							to_remove_files_rel = [[os.path.abspath(file),file[-1] == "/"] for file in self.ls(["-A","-f"])]
+							to_remove_tree_rel.extend(to_remove_files_rel)
+						for to_remove_tree_loc in to_remove_tree_rel:
+							is_relative = False
+							is_dir = False
+							if len(to_remove_tree_loc) == 2:
+								is_dir = to_remove_tree_loc[1]
+							elif to_remove_tree_loc[0][-1] == "/":
+								is_dir = True
+							if to_remove_tree_loc[0].startswith(self.get_cwd()):
+								is_relative = True
+								to_remove_tree_loc[0] = to_remove_tree_loc[0][len(self.get_cwd())+1:]
+							to_remove_tree_loc[0] = to_remove_tree_loc[0].split("/")
+							if to_remove_tree_loc[0][-1] == "":
+								del to_remove_tree_loc[0][-1]
+							if to_remove_tree_loc[0][0] == "" and not is_relative:
+								del to_remove_tree_loc[0][0]
+							if to_remove_tree_loc[-1] == "":
+								to_remove_tree.append([to_remove_tree_loc[0].pop(),to_remove_tree_loc[0],is_relative,True,is_dir])
+							if len(to_remove_tree_loc) > 1:
+								to_remove_tree.append([to_remove_tree_loc[0].pop(),to_remove_tree_loc[0],is_relative,False,is_dir])
+							else:
+								to_remove_tree.append([to_remove_tree_loc[0],None,False,False,is_dir])
+					elif os.path.isfile(remove):
+						to_remove_tree.append([remove,None,False,True,False])
+				else:
+					response.append("rm: cannot remove '" + file_raw_location + "' as no file or directory exists")
+			if len(to_remove_tree) > 0:
+				to_remove_tree_sorted = []
+				to_remove_tree_sorted_none = []
+				for file in to_remove_tree:
+					if file[1] == None:
+						file[1] = []
+						to_remove_tree_sorted_none.append(file)
+					else:
+						to_remove_tree_sorted.append(file)
+				sorted(to_remove_tree_sorted,key=lambda x: x[1], reverse=True)
+				to_remove_tree_sorted_none.extend(to_remove_tree_sorted)
+				to_remove_tree = to_remove_tree_sorted_none
+				del to_remove_tree_sorted
+				del to_remove_tree_sorted_none
+				if (prompt_3_plus and len(to_remove_tree) > 3) or recursive:
+					if recursive:
+						if not prompt_every:
+							if self.input_method(1,"rm: remove " + str(len(to_remove_tree)) + " arguments recursively? ")[0] != "y":
+								return None
+					elif self.input_method(1,"rm: remove " + str(len(to_remove_tree)) + " arguments? ")[0] != "y":
+						return None
+				current_base_dir = self.get_cwd()
+				current_directory = []
+				to_remove_tree_build = {None:[]}
+				for file in to_remove_tree:
+					if file[4]:
+						del file[4]
+						if file[1] == []:
+							to_remove_tree_build[file[0]] = []
+						else:
+							to_remove_tree_build["/".join(file[1] + [file[0]])] = []
+					elif file[1] == []:
+						del file[4]
+						to_remove_tree_build[None].append(file)
+					else:
+						del file[4]
+						to_remove_tree_build["/".join(file[1])].append(file)
+				to_remove_tree = {None:to_remove_tree_build[None]}
+				to_remove_tree_build.pop(None)
+				directory_name_keys = [*to_remove_tree_build.keys()]
+				directory_name_keys.sort()
+				directory_name_keys_iteration = []
+				for directory in directory_name_keys:
+					directory_layout = [directory]
+					for sub_directory in to_remove_tree_build:
+						if sub_directory != directory:
+							if sub_directory.startswith(directory+"/"):
+								directory_layout.append(sub_directory)
+					directory_layout = sorted(directory_layout)
+					for directory in directory_layout:
+						directory_name_keys_iteration.append(directory)
+					directory_layout = sorted(directory_layout,key=lambda x: os.path.splitext(x))
+					for directory in directory_layout:
+						to_remove_tree[directory] = to_remove_tree_build[directory]
+				to_remove_directories = []
+				for directory_name, files in to_remove_tree.items():
+					if directory_name != None:
+						directory_name = directory_name.split("/")
+					else:
+						directory_name = []
+					if directory_name != [] and files == []:
+						has_children = False
+						for directory in to_remove_tree.keys():
+							if directory == None:
+								continue
+							if directory.startswith("/".join(directory_name)+"/"):
+								has_children = True
+								break
+						if not has_children:
+							if not recursive:
+								response.append("rm: cannot remove '" + "/".join(directory_name) + "' as it is a directory")
+							elif prompt_every:
+								if self.input_method(1,"rm: remove directory '" + "/".join(directory_name) + "'? ")[0] == "y":
+									if self.remove_directory(["/".join(directory_name)]) != []:
+										response.append("rm: cannot remove directory '" + "/".join(directory_name) + "'")
+									elif verbose:
+										response.append("removed '" + "/".join(directory_name) + "'")
+							elif self.remove_directory(["/".join(directory_name)]) != []:
+								response.append("rm: cannot remove directory '" + "/".join(directory_name) + "'")
+							elif verbose:
+								response.append("removed '" + "/".join(directory_name) + "'")
+						else:
+							if prompt_every:
+								if self.input_method(1,"rm: descend into directory '" + "/".join(directory_name) + "'? ")[0] != "y":
+									directory_name_keys_iteration_sub = directory_name_keys_iteration
+									for directory in directory_name_keys_iteration_sub:
+										if directory.startswith("/".join(directory_name)+"/"):
+											directory_name_keys_iteration.remove(directory)
+											to_remove_directories.remove(directory)
+									continue
+							to_remove_directories.insert(0,directory_name)
+					else:
+						if directory_name != []:
+							is_a_child = 0
+							if len(to_remove_directories) > 0:
+								if current_directory == to_remove_directories[0]:
+									to_remove_directories.reverse()
+									for dir_remove in to_remove_directories:
+										has_children = False
+										for directory in to_remove_directories:
+											if directory == None:
+												continue
+											if "/".join(directory).startswith("/".join(directory_name)+"/"):
+												has_children = True
+												break
+										if not has_children and dir_remove in directory_name_keys_iteration:
+											if dir_remove[:len(current_directory)] != current_directory:
+												if not recursive:
+													response.append("rm: cannot remove '" + "/".join(current_directory) + "' as it is a directory")
+												elif prompt_every:
+													if self.input_method(1,"rm: remove directory '" + "/".join(directory_name) + "'? ")[0] == "y":
+														if self.remove_directory(["/".join(directory_name)]) != []:
+															response.append("rm: cannot remove directory '" + "/".join(directory_name) + "'")
+														elif verbose:
+															response.append("removed '" + "/".join(directory_name) + "'")
+												elif self.remove_directory(["/".join(directory_name)]) != []:
+													response.append("rm: cannot remove directory '" + "/".join(directory_name) + "'")
+												elif verbose:
+													response.append("removed '" + "/".join(file[1])+"/"+file[0] + "'")
+												to_remove_directories.remove(directory_name)
+									to_remove_directories.reverse()
+							if prompt_every:
+								if self.input_method(1,"rm: descend into directory '" + "/".join(directory_name) + "'? ")[0] != "y":
+									directory_name_keys_iteration_sub = directory_name_keys_iteration
+									for directory in directory_name_keys_iteration_sub:
+										if directory.startswith("/".join(directory_name)+"/"):
+											directory_name_keys_iteration.remove(directory)
+											to_remove_directories.remove(directory)
+									continue
+							to_remove_directories.insert(0,directory_name)
+						current_directory = directory_name
+						for file in files:
+							if file != [None,[],False,False]:
+								file_name_raw_concatenated = file[0]
+								if file[3]:
+									file_name_raw_concatenated = file[0]
+								else:
+									if file[1] != None and file[1] != []:
+										file_name_raw_concatenated = "/".join(directory_name) + "/" + file[0]
+									if not file[2]:
+										file_name_raw_concatenated = current_base_dir + "/" + "/".join(directory_name) + "/" + file[0]
+								if prompt_every:
+									if len(self.concatenate([file_name_raw_concatenated])) == 0:
+										if self.input_method(1,"rm: remove regular empty file '" + file_name_raw_concatenated + "'? ")[0] != "y":
+											continue
+									elif self.input_method(1,"rm: remove regular file '" + file_name_raw_concatenated + "'? ")[0] != "y":
+										continue
+								if self.unlink([file_name_raw_concatenated]) != None:
+									if system.proc.is_fg_type(self.process_id):
+										self.output_method(0,"rm: cannot remove '" + file_name_raw_concatenated + "'")
+									else:
+										response.append("rm: cannot remove '" + file_name_raw_concatenated + "'")
+								elif verbose:
+									if system.proc.is_fg_type(self.process_id):
+										self.output_method(0,"removed '" + file_name_raw_concatenated + "'")
+									else:
+										response.append("removed '" + file_name_raw_concatenated + "'")
+				if current_directory != []:
+					to_remove_directories = sorted(to_remove_directories,key=lambda x: os.path.splitext("/".join(x)))
+					while len(to_remove_directories) > 0:
+						for dir_remove in to_remove_directories:
+							dir_remove = "/".join(dir_remove)
+							if not recursive:
+								response.append("rm: cannot remove '" + dir_remove + "' as it is a directory")
+								to_remove_directories.remove(dir_remove)
+							else:
+								has_children = False
+								for directory in to_remove_directories:
+									if directory == None:
+										continue
+									if "/".join(directory).startswith(dir_remove+"/"):
+										has_children = True
+										break
+								if not has_children:
+									if prompt_every:
+										if self.input_method(1,"rm: remove directory '" + dir_remove + "'? ")[0] == "y":
+											if self.remove_directory([dir_remove]) != []:
+												response.append("rm: cannot remove directory '" + dir_remove + "'")
+											elif verbose:
+												response.append("removed '" + dir_remove + "'")
+									elif self.remove_directory([dir_remove]) != []:
+										response.append("rm: cannot remove directory '" + dir_remove + "'")
+									elif verbose:
+										response.append("removed '" + dir_remove + "'")
+									to_remove_directories.remove(dir_remove.split("/"))
+		return response
 
 	def remove_directory(self,args=[]):
 		verbose = False
@@ -680,7 +1000,7 @@ class core(threading.Thread):
 					else:
 						dir_listings.append(self.get_cwd() + "/" + arg)
 				else:
-					if arg == "-v":
+					if arg in ["-v","--verbose"]:
 						verbose = True
 					elif arg == "-p":
 						delete_directory_parent = True
@@ -693,6 +1013,10 @@ class core(threading.Thread):
 		response = []
 		current_base_dir = self.get_cwd().split("/")[1:]
 		for dir_del in dir_listings:
+			if dir_del.startswith("/"):
+				is_root = "/"
+			else:
+				is_root = ""
 			dir_delete_default_string = dir_del
 			dir_del_default_string = os.path.abspath(dir_delete_default_string).split("/")[1:]
 			if current_base_dir == dir_del_default_string:
@@ -739,11 +1063,11 @@ class core(threading.Thread):
 				for dir_del_parent in dir_del_tree:
 					directory_contents = self.ls(["-a"])
 					if directory_contents != [".",".."]:
-						response.append("rmdir: failed to remove '/" + small_relative_dir_creation[dir_deletion_iteration] + "' as directory is not empty")
+						response.append("rmdir: failed to remove '" + is_root + small_relative_dir_creation[dir_deletion_iteration] + "' as directory is not empty")
 					else:
 						self.change_directory([".."])
 						if verbose:
-							response.append("rmdir: removing directory '" + small_relative_dir_creation[dir_deletion_iteration] + "'")
+							response.append("rmdir: removing directory '" + is_root + small_relative_dir_creation[dir_deletion_iteration] + "'")
 						os.rmdir(self.get_cwd() + "/" + dir_del_parent)
 					dir_deletion_iteration+=1
 					if self.get_cwd() == os.path.abspath(dir_string):
@@ -764,7 +1088,9 @@ class core(threading.Thread):
 def terminal_parse(command = "", output = True, terminal = False):
 	if terminal == False:
 		return "Error: no terminal handler was provided"
-	if command.strip() == "":
+	elif terminal.get_definition() != True:
+		return "Error: terminal has not had a confirmed definition of objects"
+	elif command.strip() == "":
 		return ""
 	else: 
 		command = shlex.split(command.strip(" "))
