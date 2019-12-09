@@ -6,11 +6,14 @@ import json
 import shlex
 import threading
 import system
+import urllib
+import time
 
 class core(threading.Thread):
 	def __init__(self):
 		self.set_all_command_bases()
 		self.dir = False
+		self.pipe_in = None
 		self.set_cwd(os.getcwd())
 		self.process_id = None
 		self.input_method_reference = [[None,False],[None,False]]
@@ -19,7 +22,7 @@ class core(threading.Thread):
 		threading.Thread.__init__(self)
 
 	def set_all_command_bases(self, args=[]):
-		self.command_bases = {"pwd":[self.get_cwd,["string"],False],"ls":[self.ls,["join"," "],False],"hostname":[self.get_hostname,["string"],False],"cd":[self.change_directory,["string/void"],False],"mkdir":[self.create_directory,["join/void","\n"],False],"rmdir":[self.remove_directory,["join/void","\n"],False],"cat":[self.concatenate,["join","\n"],False],"head":[self.head,["join","\n"],False],"tail":[self.tail,["join","\n"],False],"cp":[self.copy,["join/void","\n"],False],"mv":[self.move,["join/void","\n"],False],"link":[self.link,["string"],False],"unlink":[self.unlink,["string"],False],"rm":[self.remove,["join/void","\n"],False]}
+		self.command_bases = {"pwd":[self.get_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"exit":[self.exit,["null"],False,False,False],"clear":[self.clear,["null"],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True]}
 		return True
 
 	def get_all_command_bases(self, args=[]):
@@ -111,12 +114,12 @@ class core(threading.Thread):
 			os.chdir(self.dir)
 			return self.dir;
 
-	def get_cwd(self, args = []):
+	def get_cwd(self,args=[]):
 		if self.dir == "/":
 			return "/"
 		return self.dir
 
-	def ls(self, args = []):
+	def ls(self,args=[]):
 		files = [".",".."]
 		reverse = False
 		show_dirs = False
@@ -162,7 +165,7 @@ class core(threading.Thread):
 			list_files.reverse()
 		return list_files
 
-	def get_hostname(self, args=[]):
+	def get_hostname(self,args=[]):
 		default = "user"
 		try:
 			with open("device.json","r") as device_details:
@@ -337,7 +340,7 @@ class core(threading.Thread):
 		self.change_directory([current_base_dir])
 		return response
 
-	def concatenate(self, args=[]):
+	def concatenate(self,args=[]):
 		cat_values = []	
 		operation_to_file = []
 		output_type = False
@@ -499,7 +502,7 @@ class core(threading.Thread):
 	def tail(self,args=[]):
 		return self.head(args,True)
 
-	def head(self, args=[], reverse=False):
+	def head(self, args=[],reverse=False):
 		total_lines = 10
 		get_next_paramter = [False,False]
 		response = []
@@ -1085,6 +1088,147 @@ class core(threading.Thread):
 			self.change_directory([current_base_dir])
 		return response
 
+	def grep(self,args=[]):
+		if self.pipe_in == None:
+			return ["grep: missing piped input stream"]
+		else:
+			response = []
+			response_raw = []
+			line_count = False
+			ignore_case = False
+			quiet = False
+			max_lines = -1
+			search = None
+			get_next_paramter = [False,False]
+			for arg in args:
+				if get_next_paramter[0]:
+					if get_next_paramter[1] == "-m":
+						if arg.isdigit():
+							arg = int(arg)
+							if arg > 0:
+								max_lines = arg
+								continue
+						response.append("grep: invalid number of lines '" + arg + "'")
+						continue
+				elif arg.startswith("-"):
+					if arg in ["-c","--count"]:
+						line_count = True
+					elif arg == "-i":
+						ignore_case = True
+					elif arg == "-m":
+						get_next_paramter = [True,"-m"]
+					elif arg in ["-q","--quiet","--silent"]:
+						quiet = True
+					else:
+						raise ValueError(arg)
+				elif shlex.split(arg) != arg:
+					search = " ".join(shlex.split(arg))
+					continue
+			if search == None:
+				return ["grep: missing search parameter"]
+			if ignore_case:
+				search = search.lower()
+			if type(self.pipe_in) != list:
+				if type(self.pipe_in) == str:
+					self.pipe_in = self.pipe_in.split(" ")
+			entry_line_number = 0
+			for entry in self.pipe_in:
+				actual_entry = entry
+				if ignore_case:
+					entry = entry.lower()
+				entry_line_number += 1
+				if entry.find(search) >= 0:
+					if quiet:
+						return None
+					response_raw.append((entry_line_number,actual_entry))
+					if max_lines >= 0:
+						if len(response_raw) >= max_lines:
+							break
+			total_lines_character_size = len(response_raw)
+			for entry in response_raw:
+				if line_count:
+					response.append(str(entry[0]) + ":" + entry[1])
+				else:
+					response.append(entry[1])
+			return response
+		return None
+
+	def uniq(self,args=[]):
+		if self.pipe_in == None:
+			return ["uniq: missing piped input stream"]
+		else:
+			response = []
+			count = False
+			only_duplicates = False
+			ignore_case = True
+			only_unique = False
+			for arg in args:
+				if arg.startswith("-"):
+					if arg in ["-c","--count"]:
+						count = True
+					elif arg in ["-d","--repeated"]:
+						only_duplicates = True
+					elif arg in ["-i","--ignore_case"]:
+						ignore_case = True
+					elif arg in ["-u","--unique"]:
+						only_unique = True
+					else:
+						raise ValueError(arg)
+			unique = []
+			for line in self.pipe_in:
+				unique_positional_list_loc = 0
+				is_unique = True
+				for entry in unique:
+					if entry[1] == line:
+						is_unique = False
+						entry[0] += 1
+						unique[unique_positional_list_loc] = entry
+					if ignore_case:
+						if entry[1].lower() == line.lower():
+							is_unique = False
+							entry[0] += 1
+							unique[unique_positional_list_loc] = entry
+					unique_positional_list_loc += 1
+				if is_unique:
+					unique.append([1,line])
+			max_num = 0
+			if count:
+				for entry in unique:
+					if entry[0] >= max_num:
+						max_num = entry[0]
+			for entry in unique:
+				if only_unique:
+					if entry[0] != 1:
+						continue
+				elif only_duplicates:
+					if entry[0] <= 1:
+						continue
+				if count:
+					response.append(" " + str(entry[0]) + ((len(str(max_num)) - len(str(entry[0])) + 1) * " ") + entry[1])
+				else:
+					response.append(entry[1])
+		return response
+
+	def exit(self,args=[]):
+		raise SystemExit("exit")
+		return None
+
+	def clear(self,args=[]):
+		raise SystemExit("clear")
+		return None
+
+	def ping(self,args=[]):
+		'''
+		Not implemented yet
+		'''
+		return False
+
+	def wget(self,args=[]):
+		'''
+		Not implemented yet
+		'''
+		return False
+
 def terminal_parse(command = "", output = True, terminal = False):
 	if terminal == False:
 		return "Error: no terminal handler was provided"
@@ -1092,45 +1236,69 @@ def terminal_parse(command = "", output = True, terminal = False):
 		return "Error: terminal has not had a confirmed definition of objects"
 	elif command.strip() == "":
 		return ""
-	else: 
-		command = shlex.split(command.strip(" "))
-		command_bases = terminal.get_all_command_bases()
-		if command[0] in command_bases:
-			try:
-				new_process = system.proc.new(" ".join(command),output)
-				if new_process[0]:
-					terminal.set_proc(new_process[1])
-					pid = terminal.get_proc()
+	else:
+		commands = command.split("|")
+		piped_commands = []
+		for command in commands:
+			original_command = command
+			command = shlex.split(command)
+			command_bases = terminal.get_all_command_bases()
+			if not command[0] in command_bases:
+				return str(command[0]) + ": Command not found!"
+			else:
+				if command_bases[command[0]][4]:
+					command = shlex.split(original_command,posix=False)
+				piped_commands.append(command)
+		del commands
+		end_of_pipe = len(piped_commands)
+		pipe_iteration = 0
+		piped_command = None
+		terminal.pipe_in = None
+		for command in piped_commands:
+			if command[0] in command_bases:
+				if piped_command != None and command_bases[command[0]][3] == False:
+					return "Error: unable to pipe into " + command[0]
 				else:
-					return new_process[1]
-				if command_bases[command[0]][2]:
-					threading.Thread(target=self.command_bases[command[0]][0](command[1:]))
-					return None
-				else:
-					response = command_bases[command[0]][0](command[1:])
-					if output == True:
-						if command_bases[command[0]][1][0] == "null":
-							return command_bases[command[0]][1][0] == None
-						if command_bases[command[0]][1][0] == "string":
-							if response != None:
-								return str(response)
-						elif command_bases[command[0]][1][0] == "join":
-							if response != None:
-								return command_bases[command[0]][1][1].join(response)
-						elif command_bases[command[0]][1][0] == "join/void":
-							if response != None:
-								return command_bases[command[0]][1][1].join(response)
-						elif command_bases[command[0]][1][0] == "string/void":
-							if response != None:
-								return str(response)
+					try:
+						new_process = system.proc.new(" ".join(command),output)
+						if new_process[0]:
+							terminal.set_proc(new_process[1])
+							pid = terminal.get_proc()
 						else:
-							return response
-					else:
-						return response
-			except ValueError as e:
-				return "Error: invalid parameter '" + str(e) + "'"
-		else:
-			return "Command not found!"
+							return new_process[1]
+						if command_bases[command[0]][2]:
+							threading.Thread(target=self.command_bases[command[0]][0](command[1:]))
+							return None
+						else:
+							response = command_bases[command[0]][0](command[1:])
+							pipe_iteration += 1
+							if pipe_iteration == end_of_pipe:
+								if output == True:
+									if command_bases[command[0]][1][0] == "null":
+										return command_bases[command[0]][1][0] == None
+									if command_bases[command[0]][1][0] == "string":
+										if response != None:
+											return str(response)
+									elif command_bases[command[0]][1][0] == "join":
+										if response != None:
+											return command_bases[command[0]][1][1].join(response)
+									elif command_bases[command[0]][1][0] == "join/void":
+										if response != None:
+											return command_bases[command[0]][1][1].join(response)
+									elif command_bases[command[0]][1][0] == "string/void":
+										if response != None:
+											return str(response)
+									else:
+										return response
+								else:
+									return response
+							else:
+								piped_command = command[0]
+								terminal.pipe_in = response
+					except ValueError as e:
+						return "Error: invalid parameter '" + str(e) + "' in " + command[0]
+			else:
+				return "Command not found!"
 
 
 

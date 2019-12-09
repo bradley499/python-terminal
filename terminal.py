@@ -38,3 +38,8 @@ while True:
 			print(response)
 	except EOFError:
 		break
+	except SystemExit as e:
+		if str(e) == "exit":
+			break
+		elif str(e) == "clear":
+			print("\033c", end="")

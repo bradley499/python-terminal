@@ -5,7 +5,7 @@ This project is aimed to be used in an encapsulated environment (although it is 
  ```diff
  + cat 
  + cd
- - exit
+ + exit
  - find
  + head
  + tail
@@ -24,7 +24,13 @@ This project is aimed to be used in an encapsulated environment (although it is 
  - whoami
  - uname
  + hostname
+ + grep
+ + uniq
+ + clear
  ```
+
+#### How to run
+Simply execute the file named ```terminal.py``` to run the program.
 
 #### Future plans
 * Restrict the terminal to a base directory<sup>[1]</sup> so that it cannot branch out into core system directories
