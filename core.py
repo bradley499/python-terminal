@@ -22,7 +22,7 @@ class core(threading.Thread):
 		threading.Thread.__init__(self)
 
 	def set_all_command_bases(self, args=[]):
-		self.command_bases = {"pwd":[self.get_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"exit":[self.exit,["null"],False,False,False],"clear":[self.clear,["null"],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True]}
+		self.command_bases = {"pwd":[self.get_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"exit":[self.exit,["null"],False,False,False],"clear":[self.clear,["null"],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True]}
 		return True
 
 	def get_all_command_bases(self, args=[]):
@@ -1168,7 +1168,7 @@ class core(threading.Thread):
 						count = True
 					elif arg in ["-d","--repeated"]:
 						only_duplicates = True
-					elif arg in ["-i","--ignore_case"]:
+					elif arg in ["-i","--ignore-case"]:
 						ignore_case = True
 					elif arg in ["-u","--unique"]:
 						only_unique = True
@@ -1208,6 +1208,29 @@ class core(threading.Thread):
 				else:
 					response.append(entry[1])
 		return response
+
+	def sort(self,args=[]):
+		if self.pipe_in == None:
+			return ["sort: missing piped input stream"]
+		else:
+			response = self.pipe_in
+			reverse = False
+			ignore_case = False
+			for arg in args:
+				if arg in ["-r","--reverse"]:
+					reverse = True
+				elif arg in ["-f","--ignore-case"]:
+					ignore_case = True
+				else:
+					raise ValueError(arg)
+			if type(self.pipe_in) != list:
+				if type(self.pipe_in) == str:
+					response = self.pipe_in.split(" ")
+			if ignore_case:
+				response.sort(reverse = reverse, key=str.lower)
+			else:
+				response.sort(reverse = reverse)
+			return response
 
 	def exit(self,args=[]):
 		raise SystemExit("exit")
