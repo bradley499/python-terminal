@@ -1,0 +1,13 @@
+NAME
+	mv
+SYNOPSIS
+	mv [OPTION]... SOURCE DEST
+	mv [OPTION]... SOURCE... DIRECTORY
+	mv [OPTION]... DIRECTORY SOURCE...
+ABOUT
+	move (rename) files
+DESCRIPTION
+	Rename SOURCE to DEST, or move SOURCE(s) to DIRECTORY.
+	Mandatory arguments to long options are mandatory for short options too.
+	-v, -verbose
+		explain what is being done

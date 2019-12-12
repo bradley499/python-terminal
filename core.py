@@ -8,6 +8,7 @@ import threading
 import system
 import urllib
 import time
+import socket
 
 class core(threading.Thread):
 	def __init__(self):
@@ -19,10 +20,11 @@ class core(threading.Thread):
 		self.input_method_reference = [[None,False],[None,False]]
 		self.output_method_reference = [[None,False],[None,False]]
 		self.definition_complete = False
+		self.base_directory = os.getcwd()
 		threading.Thread.__init__(self)
 
 	def set_all_command_bases(self, args=[]):
-		self.command_bases = {"pwd":[self.get_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"exit":[self.exit,["null"],False,False,False],"clear":[self.clear,["null"],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True]}
+		self.command_bases = {"pwd":[self.get_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"exit":[self.exit,["null"],False,False,False],"clear":[self.clear,["null"],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
 		return True
 
 	def get_all_command_bases(self, args=[]):
@@ -129,19 +131,19 @@ class core(threading.Thread):
 		qouting_literal = False
 		if len(args) >= 1:
 			for arg in args:
-				if arg == "-a":
+				if arg in ["-a","--all"]:
 					show_all = True
-				elif arg == "-A":
+				elif arg in ["-A","--almost-all"]:
 					files = []
-				elif arg == "-r":
+				elif arg in ["-r","--reverse"]:
 					reverse = True
-				elif arg == "-f":
+				elif arg == "-p":
 					show_dirs = True
 				elif arg == "-m":
 					comma = True
-				elif arg == "-q":
-					qoutation = True
-				elif arg == "-n":
+				elif arg in ["-q","--quote-name"]:
+ 					qoutation = True
+				elif arg in ["-n","--literal"]:
 					qouting_literal = True
 				else:
 					raise ValueError(arg)
@@ -166,19 +168,83 @@ class core(threading.Thread):
 		return list_files
 
 	def get_hostname(self,args=[]):
-		default = "user"
+		default = "computer"
+		current_directory = self.get_cwd()
+		self.change_directory([self.base_directory])
+		if not "device.json" in self.ls(["-A"]):
+			self.change_directory([current_directory])
+			return default
 		try:
 			with open("device.json","r") as device_details:
+				self.change_directory([current_directory])
 				try:
 					device_details = json.loads(device_details.read())
 					return device_details["name"]
 				except:
 					return default
 		except:
+			self.change_directory([current_directory])
 			return default
+		self.change_directory([current_directory])	
 		return default
 
+	def who_am_i(self,args=[]):
+		default = "user"
+		current_directory = self.get_cwd()
+		self.change_directory([self.base_directory])
+		if not "device.json" in self.ls(["-A"]):
+			self.change_directory([current_directory])
+			return default
+		try:
+			with open("device.json","r") as device_details:
+				self.change_directory([current_directory])
+				try:
+					device_details = json.loads(device_details.read())
+					return device_details["user"]
+				except:
+					return default
+		except:
+			self.change_directory([current_directory])
+			return default
+		self.change_directory([current_directory])	
+		return default		
+
+	def uname(self,args=[]):
+		response = []
+		kernel_name = False
+		nodename = False
+		kernel_release = False
+		kernel_version = False
+		for arg in args:
+			if arg in ["-s","--kernel-name"]:
+				kernel_name = True
+			elif arg in ["-n","--nodename"]:
+				nodename = True
+			elif arg in ["-r","--kernel-release"]:
+				kernel_release = True
+			elif arg in ["-v","--kernel-version"]:
+				kernel_version = True
+			elif arg in ["-a","--all"]:
+				kernel_name = True
+				nodename = True
+				kernel_release = True
+				kernel_version = True
+		if not kernel_version and not kernel_release and not nodename and not kernel_name:
+			kernel_name = True
+		if kernel_name:
+			response.append("Python")
+		if nodename:
+			response.append(socket.gethostname())
+		if kernel_release:
+			response.append("67")
+		if kernel_version:
+			response.append("0.0.1")
+		return response
+
 	def move(self,args=[]):
+		for arg in args:
+			if arg in ["-r","-R","--recursive"]:
+				raise ValueError(arg)
 		return self.copy(args,True)
 
 	def copy(self,args=[],remove=False):
@@ -197,7 +263,7 @@ class core(threading.Thread):
 				else:
 					if arg in ["-v","--verbose"]:
 						verbose = True
-					elif arg == "-r":
+					elif arg in ["-r","-R","--recursive"]:
 						recursive = True
 					else:
 						raise ValueError(arg)
@@ -353,13 +419,13 @@ class core(threading.Thread):
 			output_type_type_verification = -1
 			for arg in args:
 				if arg.startswith("-"):
-					if arg == "-n":
+					if arg in ["-n","--number"]:
 						line_count = True
-					elif arg == "-e":
+					elif arg in ["-e","--show-ends"]:
 						end_of_line = True
-					elif arg == "-t":
+					elif arg in ["-t","--show-tabs"]:
 						show_tabulations = True
-					elif arg == "-s":
+					elif arg in ["-s","--squeeze-blank"]:
 						squeeze_blanks = True
 					else:
 						raise ValueError(arg)
@@ -437,7 +503,6 @@ class core(threading.Thread):
 									if show_tabulations:
 										input_to_output = bytes(input_to_output.decode("utf-8").replace("\t","^I"),"utf-8")
 									if end_of_line:
-
 										input_to_output = input_to_output.decode("utf-8").splitlines(True)
 										input_to_output[-1] = input_to_output[-1].splitlines(True)
 										default_input_to_output = input_to_output[-1][-1]
@@ -521,7 +586,7 @@ class core(threading.Thread):
 				response.append(joint_command_type + ": invalid number of lines '" + arg + "'")
 				continue
 			if arg.startswith("-"):
-				if arg == "-n":
+				if arg in ["-n","--lines"]:
 					get_next_paramter = [True,arg]
 				else:
 					raise ValueError(arg)
@@ -738,7 +803,7 @@ class core(threading.Thread):
 						force = True
 						prompt_every = False
 						prompt_3_plus = False
-					elif arg  == "-i" and not force:
+					elif arg == "-i" and not force:
 						prompt_every = True
 					elif arg == "-I" and not force:
 						prompt_3_plus = True
@@ -1005,7 +1070,7 @@ class core(threading.Thread):
 				else:
 					if arg in ["-v","--verbose"]:
 						verbose = True
-					elif arg == "-p":
+					elif arg in ["-p","--parents"]:
 						delete_directory_parent = True
 					else:
 						raise ValueError(arg)
@@ -1113,9 +1178,9 @@ class core(threading.Thread):
 				elif arg.startswith("-"):
 					if arg in ["-c","--count"]:
 						line_count = True
-					elif arg == "-i":
+					elif arg in ["-i","--ignore-case"]:
 						ignore_case = True
-					elif arg == "-m":
+					elif arg in ["-m","--max-count"]:
 						get_next_paramter = [True,"-m"]
 					elif arg in ["-q","--quiet","--silent"]:
 						quiet = True
@@ -1227,7 +1292,7 @@ class core(threading.Thread):
 				if type(self.pipe_in) == str:
 					response = self.pipe_in.split(" ")
 			if ignore_case:
-				response.sort(reverse = reverse, key=str.lower)
+				response.sort(reverse = reverse, key=str.upper)
 			else:
 				response.sort(reverse = reverse)
 			return response
@@ -1251,6 +1316,62 @@ class core(threading.Thread):
 		Not implemented yet
 		'''
 		return False
+
+	def help(self,args=[]):
+		return ["Python terminal, version " + " ".join(self.uname(["-v"])) + " (" + " ".join(self.uname(["-r"])) + ")",
+				"These shell commands are defined internally.  Type 'help' to see this list.",
+				"Type 'man name' to find out more about the function 'name'.",
+				"",
+				"A star (*) next to a name means that the command is disabled.",
+				""] + [" "+(" - ".join([command,self.man(["-f",command])[0]])) for command in self.get_all_command_bases().keys()]
+
+	def man(self,args=[]):
+		response = []
+		what_is = False
+		command = None
+		for arg in args:
+			if arg.startswith("-"):
+				if arg in ["-f","--what-is"]:
+					what_is = True
+				else:
+					raise ValueError(arg)
+			elif command == None:
+				command = arg
+			else:
+				raise ValueError(arg)
+		if command == None:
+			return ["What manual page do you want?"]
+		else:
+			current_directory = self.get_cwd()
+			self.change_directory([self.base_directory+"/_docs"])
+			if arg+".man" in self.ls(["-A"]):
+				command = self.concatenate([command+".man"])
+				parsed = {}
+				last_header = None
+				for line in command:
+					if not line.startswith("	"):
+						if line != last_header:
+							parsed[line] = []
+							last_header = line
+					else:
+						parsed[last_header].append(line.replace("	",""))
+				if what_is:
+					response = parsed["ABOUT"]
+				else:
+					for heading, parse in parsed.items():
+						response.append(heading)
+						has_sub_children = False
+						for contents in parse:
+							if not contents.startswith("-"):
+								contents = "   " + contents
+								if has_sub_children:
+									contents = "   " + contents
+							else:
+								contents = "   " + contents
+								has_sub_children = True
+							response.append(contents)
+			self.change_directory([current_directory])
+		return response
 
 def terminal_parse(command = "", output = True, terminal = False):
 	if terminal == False:

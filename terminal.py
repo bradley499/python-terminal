@@ -33,7 +33,7 @@ terminal.set_definition(True)
 
 while True:
 	try:
-		response = (core.terminal_parse(input(terminal.get_hostname() + ":" + terminal.get_cwd() + "$ "),True,terminal))
+		response = (core.terminal_parse(input(terminal.who_am_i()+"@"+terminal.get_hostname() + ":" + terminal.get_cwd() + "$ "),True,terminal))
 		if not response in ["",None] :
 			print(response)
 	except EOFError:

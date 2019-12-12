@@ -1,0 +1,19 @@
+NAME
+	rm
+SYNOPSIS
+	rm [OPTION]... [FILE]...
+ABOUT
+	remove files or directories
+DESCRIPTION
+	If the -I option is given, and there are more than three files or the -r, -R, or --recursive are given, then rm prompts the user for whether to proceed with the entire operation. If the response is not affirmative, the entire command is aborted.
+	Otherwise, if a file is unwritable, standard input is a terminal, and the -f or --force option is not given, or the -i  option is given, rm prompts the user for whether to remove the file. If the response is not affirmative, the file is skipped.
+	-f, --force
+		ignore nonexistent files and arguments, never prompt
+	-i
+		prompt before every removal
+	-I
+		prompt once before removing more than three files, or when removing recursively; less intrusive than -i, while still giving protection against most mistakes
+	-r, -R, --recursive
+		remove directories and their contents recursively
+	-d, --dir
+		remove empty directories

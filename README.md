@@ -21,18 +21,19 @@ This project is aimed to be used in an encapsulated environment (although it is 
  - ps
  - ping
  + pwd
- - whoami
- - uname
+ + whoami
+ + uname
  + hostname
  + grep
  + uniq
  + clear
+ + help
+ + man
  ```
 
 #### How to run
 Simply execute the file named ```terminal.py``` to run the program.
 
 #### Future plans
-* Restrict the terminal to a base directory<sup>[1]</sup> so that it cannot branch out into core system directories
-* Add a file registry<sup>[2]</sup> and allocation based on user permissions
-* Add support for the Linux/Unix `chmod` command to be mimicked, to hold data in a file registry[2] that will support the entire encapsulated file system from within the base directory[1] folder 
+* Restrict the terminal to a base directory so that it cannot branch out into core system directories
+* Add support for the Linux/Unix `chmod` command to be mimicked

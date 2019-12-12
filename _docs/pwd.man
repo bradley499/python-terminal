@@ -1,0 +1,8 @@
+NAME
+	pwd
+SYNOPSIS
+	pwd
+ABOUT
+	print name of current/working directory
+DESCRIPTION
+	List information about the files.
