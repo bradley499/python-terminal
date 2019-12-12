@@ -207,7 +207,7 @@ class core(threading.Thread):
 			self.change_directory([current_directory])
 			return default
 		self.change_directory([current_directory])	
-		return default		
+		return default
 
 	def uname(self,args=[]):
 		response = []
@@ -236,7 +236,7 @@ class core(threading.Thread):
 		if nodename:
 			response.append(socket.gethostname())
 		if kernel_release:
-			response.append("67")
+			response.append("71")
 		if kernel_version:
 			response.append("0.0.1")
 		return response
@@ -1349,12 +1349,13 @@ class core(threading.Thread):
 				parsed = {}
 				last_header = None
 				for line in command:
-					if not line.startswith("	"):
+					if line.count("	") == 0:
 						if line != last_header:
+							line = line.lstrip()
 							parsed[line] = []
 							last_header = line
 					else:
-						parsed[last_header].append(line.replace("	",""))
+						parsed[last_header].append(line.lstrip())
 				if what_is:
 					response = parsed["ABOUT"]
 				else:
