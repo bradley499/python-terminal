@@ -6,6 +6,7 @@ import json
 import shlex
 import threading
 import system
+import version
 import urllib
 import time
 import socket
@@ -234,11 +235,15 @@ class core(threading.Thread):
 		if kernel_name:
 			response.append("Python")
 		if nodename:
-			response.append(socket.gethostname())
-		if kernel_release:
-			response.append("71")
+			response.append(self.get_hostname([]))
 		if kernel_version:
-			response.append("0.0.1")
+			response.append(str(version.__version__))
+		if kernel_release:
+			if kernel_version:
+				delimiters = ("(",")")
+			else:
+				delimiters = ("","")
+			response.append(delimiters[0]+str(version.__release__)+delimiters[1])
 		return response
 
 	def move(self,args=[]):
