@@ -434,23 +434,6 @@ class core(threading.Thread):
 						squeeze_blanks = True
 					else:
 						raise ValueError(arg)
-				elif arg == ">":
-					output_type = "wb"
-					output_type_type_verification += 1
-					operation_to_file.append([cat_values,[],"wb"])
-					cat_values = []
-					get_next_output = True
-				elif arg == ">>":
-					output_type = "ab"
-					output_type_type_verification += 1
-					operation_to_file.append([cat_values,[],"ab"])
-					cat_values = []
-					get_next_output = True
-				elif get_next_output:
-					operation_to_file[output_type_type_verification][1].append(arg)
-					cat_values.append(arg)
-				elif arg == "<":
-					pass
 				else:
 					cat_values.append(arg)
 			if get_next_output:
@@ -458,114 +441,53 @@ class core(threading.Thread):
 					return ["cat: syntax error where output was expected"]
 		response = []
 		output_error_stream = []
-		if output_type != False:
-			for to_file in operation_to_file:
-				if len(to_file) > 0:
-					output_type = to_file[2]
-					input_stream = []
-					if to_file[0] == []:
-						while True:
-							try:
-								input_stream_buffer = self.input_method(0)
-							except EOFError:
-								break
-							if line_count:
-								input_stream.append(input_stream_buffer + "\n")
-							else:
-								input_stream.append(bytes(input_stream_buffer + "\n","utf-8"))
-					else:
-						files = []
-						for file in to_file[0]:
-							file_relative = file
-							if not file.startswith("/"):
-								file = self.get_cwd() + "/" + file
-							file = os.path.abspath(file)
-							if os.path.isfile(file):
-								files.append([file,file_relative])
-							else:
-								response.append("cat: unable to use file '" + file_relative + "' for input stream as it does not exists")
-						if len(response) > 0:
-							return response
-						else:
-							for file in files:
-								try:
-									with open(file[0],"rb") as file:
-										for file_lines in file.readlines():
-											input_stream.append(file_lines)
-								except Exception as e:
-									output_error_stream.append("cat: unable to read the file '" + file_raw_location[1] + "' as the encoding type is not dynamically supported")
-					previous_line = b''
-					for file in to_file[1]:
-						file_raw_location = file
-						if not file.startswith("/"):
-							file = self.get_cwd() + "/" + file
-						file = os.path.abspath(file)
-						try:
-							with open(file,output_type) as output_file:
-								total_lines_character_size = len(str(len(input_stream)))
-								line_num = 0
-								for input_to_output in input_stream:
-									if show_tabulations:
-										input_to_output = bytes(input_to_output.decode("utf-8").replace("\t","^I"),"utf-8")
-									if end_of_line:
-										input_to_output = input_to_output.decode("utf-8").splitlines(True)
-										input_to_output[-1] = input_to_output[-1].splitlines(True)
-										default_input_to_output = input_to_output[-1][-1]
-										for escaped_character in ["\r\n","\r","\n"]:
-											input_to_output[-1][-1] = input_to_output[-1][-1].replace(escaped_character,"$"+escaped_character,1)
-											if default_input_to_output != input_to_output[-1][-1]:
-												break
-										if default_input_to_output == input_to_output[-1][-1]:
-											input_to_output[-1].append("$")
-										input_to_output[-1] = "".join(input_to_output[-1])
-										input_to_output = "".join(input_to_output)
-										input_to_output = bytes(input_to_output,"utf-8")
-									if not (squeeze_blanks and previous_line == input_to_output and len(input_stream) > 0 and len(input_to_output) >= 0):
-										if squeeze_blanks:
-											previous_line = input_to_output
-										if line_count:
-											output_file.write(b"".join([bytes(str(((total_lines_character_size - len(str(line_num + 1)) + 1) * " ") + str(line_num + 1) + " "),"utf-8"),input_to_output]))
-										else:
-											output_file.write(input_to_output)
-										line_num += 1
-						except Exception as e:
-							output_error_stream.append("cat: unable to write to file '" + file_raw_location + "' as the encoding type is not dynamically supported")
-				else:
-					response.append("cat: syntax error where output was expected")
+		output_stream = []
+		previous_line = None
+		if len(cat_values) == 0:
+			while True:
+				try:
+					input_stream_buffer = self.input_method(0)
+				except EOFError:
+					break
+				if show_tabulations:
+					input_stream_buffer = input_stream_buffer.replace("\t","^I")
+				if end_of_line:
+					input_stream_buffer = input_stream_buffer + "$"
+				if not (squeeze_blanks and previous_line == input_stream_buffer and len(output_stream) > 0 and len(input_stream_buffer) >= 0):
+					if squeeze_blanks:
+						previous_line = input_stream_buffer
+				output_stream.append(input_stream_buffer)
 		else:
-			if len(cat_values) > 0:
-				output_stream = []
-				previous_line = None
-				for file in cat_values:
-					file_relative = file
-					if not file.startswith("/"):
-						file = self.get_cwd() + "/" + file
-					file = os.path.abspath(file)
-					if not os.path.isfile(file):
-						output_error_stream.append("cat: unable to use file '" + file_relative + "' for input stream as it does not exists")
-					else:
-						try:
-							with open(file,"rb") as output_file:
-								for line in output_file.readlines():
-									line = line.decode("utf-8")
-									line = line.rstrip()
-									if show_tabulations:
-										line = line.replace("\t","^I")
-									if end_of_line:
-										line = line + "$"
-									if not (squeeze_blanks and previous_line == line and len(output_stream) > 0 and len(line) >= 0):
-										if squeeze_blanks:
-											previous_line = line
-										output_stream.append(line)
-						except Exception as e:
-							output_error_stream.append("cat: unable to read the file '" + file_relative + "' as the encoding type is not dynamically supported")
-				total_lines = len(output_stream)
-				total_lines_character_size = len(str(total_lines))
-				for line_num in range(total_lines):
-					if line_count:
-						response.append(((total_lines_character_size - len(str(line_num + 1)) + 1) * " ") + str(line_num + 1) + " " + output_stream[line_num])
-					else:
-						response.append(output_stream[line_num])
+			for file in cat_values:
+				file_relative = file
+				if not file.startswith("/"):
+					file = self.get_cwd() + "/" + file
+				file = os.path.abspath(file)
+				if not os.path.isfile(file):
+					output_error_stream.append("cat: unable to use file '" + file_relative + "' for input stream as it does not exists")
+				else:
+					try:
+						with open(file,"rb") as output_file:
+							for line in output_file.readlines():
+								line = line.decode("utf-8")
+								line = line.rstrip()
+								if show_tabulations:
+									line = line.replace("\t","^I")
+								if end_of_line:
+									line = line + "$"
+								if not (squeeze_blanks and previous_line == line and len(output_stream) > 0 and len(line) >= 0):
+									if squeeze_blanks:
+										previous_line = line
+									output_stream.append(line)
+					except Exception as e:
+						output_error_stream.append("cat: unable to read the file '" + file_relative + "' as the encoding type is not dynamically supported")
+		total_lines = len(output_stream)
+		total_lines_character_size = len(str(total_lines))
+		for line_num in range(total_lines):
+			if line_count:
+				response.append(((total_lines_character_size - len(str(line_num + 1)) + 1) * " ") + str(line_num + 1) + " " + output_stream[line_num])
+			else:
+				response.append(output_stream[line_num])
 		response.extend(output_error_stream)
 		return response
 
@@ -1410,6 +1332,15 @@ def terminal_parse(command = "", output = True, terminal = False):
 					return "Error: unable to pipe into " + command[0]
 				else:
 					try:
+						max_param_operations = 1
+						for parameter in command[1:]:
+							if not parameter[0] in [">","<"]:
+								max_param_operations += 1
+							else:
+								break
+						if len(command[1:]) == max_param_operations:
+							max_param_operations = None
+						start_param_execution_from = 1
 						new_process = system.proc.new(" ".join(command),output)
 						if new_process[0]:
 							terminal.set_proc(new_process[1])
@@ -1417,10 +1348,53 @@ def terminal_parse(command = "", output = True, terminal = False):
 						else:
 							return new_process[1]
 						if command_bases[command[0]][2]:
-							threading.Thread(target=self.command_bases[command[0]][0](command[1:]))
+							threading.Thread(target=self.command_bases[command[0]][0](command[1:max_param_operations]))
 							return None
 						else:
-							response = command_bases[command[0]][0](command[1:])
+							response = command_bases[command[0]][0](command[1:max_param_operations])
+							command_data = command
+							operator_values = []	
+							get_next_output = False
+							output_type = False
+							operation_to_file = []
+							output_type_type_verification = -1
+							for arg in command_data:
+								if arg == ">":
+									output_type = "wb"
+									output_type_type_verification += 1
+									operation_to_file.append([operator_values,[],"wb"])
+									operator_values = []
+									get_next_output = True
+								elif arg == ">>":
+									output_type = "ab"
+									output_type_type_verification += 1
+									operation_to_file.append([operator_values,[],"ab"])
+									operator_values = []
+									get_next_output = True
+								elif get_next_output:
+									operation_to_file[output_type_type_verification][1].append(arg)
+									operator_values.append(arg)
+								elif arg == "<":
+									pass
+							if output_type != False:
+								for to_file in operation_to_file:
+									if len(to_file) > 0:
+										output_type = to_file[2]
+										if type(response) != list:
+											response = [response]
+										for file in to_file[1]:
+											file_raw_location = file
+											if not file.startswith("/"):
+												file = terminal.get_cwd() + "/" + file
+											file = os.path.abspath(file)
+											try:
+												with open(file,output_type) as output_file:
+													for input_to_output in response:
+														output_file.write(bytes(str(command_bases[command[0]][1][1]+input_to_output),"utf-8"))
+											except Exception as e:
+												response.append("Error: unable redirect output to be written to file '" + file_raw_location + "' as the encoding type is not dynamically supported")
+									else:
+										response.append("Error: syntax error where output was expected")
 							pipe_iteration += 1
 							if pipe_iteration == end_of_pipe:
 								if output == True:
