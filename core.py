@@ -3,13 +3,15 @@
 
 import os
 import json
-import shlex
 import threading
 import system
 import version
 import urllib
 import time
+import datetime
+import math
 import socket
+import ssl
 
 class core(threading.Thread):
 	def __init__(self):
@@ -25,7 +27,7 @@ class core(threading.Thread):
 		threading.Thread.__init__(self)
 
 	def set_all_command_bases(self, args=[]):
-		self.command_bases = {"pwd":[self.get_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"exit":[self.exit,["null"],False,False,False],"clear":[self.clear,["null"],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
+		self.command_bases = {"pwd":[self.get_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"exit":[self.exit,["null"],False,False,False],"clear":[self.clear,["null"],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"wget":[self.wget,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
 		return True
 
 	def get_all_command_bases(self, args=[]):
@@ -102,6 +104,7 @@ class core(threading.Thread):
 				self.output_method_reference[1][0](output)
 			else:
 				raise NotImplementedError("no output method defined")
+		return output
 
 	def set_proc(self,pid):
 		self.process_id = pid
@@ -496,15 +499,15 @@ class core(threading.Thread):
 
 	def head(self, args=[],reverse=False):
 		total_lines = 10
-		get_next_paramter = [False,False]
+		get_next_parameter = [False,False]
 		response = []
 		files = []
 		joint_command_type = "head"
 		if reverse:
 			joint_command_type = "tail"
 		for arg in args:
-			if get_next_paramter[0]:
-				if get_next_paramter[1] == "-n":
+			if get_next_parameter[0]:
+				if get_next_parameter[1] == "-n":
 					if arg.isdigit():
 						arg = int(arg)
 						if arg > 0:
@@ -514,7 +517,7 @@ class core(threading.Thread):
 				continue
 			if arg.startswith("-"):
 				if arg in ["-n","--lines"]:
-					get_next_paramter = [True,arg]
+					get_next_parameter = [True,arg]
 				else:
 					raise ValueError(arg)
 			else:
@@ -1091,10 +1094,10 @@ class core(threading.Thread):
 			quiet = False
 			max_lines = -1
 			search = None
-			get_next_paramter = [False,False]
+			get_next_parameter = [False,False]
 			for arg in args:
-				if get_next_paramter[0]:
-					if get_next_paramter[1] == "-m":
+				if get_next_parameter[0]:
+					if get_next_parameter[1] == "-m":
 						if arg.isdigit():
 							arg = int(arg)
 							if arg > 0:
@@ -1108,13 +1111,13 @@ class core(threading.Thread):
 					elif arg in ["-i","--ignore-case"]:
 						ignore_case = True
 					elif arg in ["-m","--max-count"]:
-						get_next_paramter = [True,"-m"]
+						get_next_parameter = [True,"-m"]
 					elif arg in ["-q","--quiet","--silent"]:
 						quiet = True
 					else:
 						raise ValueError(arg)
-				elif shlex.split(arg) != arg:
-					search = " ".join(shlex.split(arg))
+				elif parser_split(arg) != arg:
+					search = " ".join(parser_split(arg))
 					continue
 			if search == None:
 				return ["grep: missing search parameter"]
@@ -1239,10 +1242,267 @@ class core(threading.Thread):
 		return False
 
 	def wget(self,args=[]):
-		'''
-		Not implemented yet
-		'''
-		return False
+		response = []
+		verbose = 1
+		input_file = False
+		locations = [False]
+		tries = 20
+		get_next_parameter = [False, False]
+		if len(args) >= 1:
+			for arg in args:
+				if get_next_parameter[0]:
+					if get_next_parameter[1] == "-t":
+						if arg.isdigit():
+							arg = int(arg)
+							if arg > 0:
+								tries = arg
+								continue
+					elif get_next_parameter[1] == "-i":
+						input_file = arg
+				if arg.startswith("-"):
+					if arg in ["-v","--verbose","-nv","--no-verbose"]:
+						if arg in ["-v","--verbose"]:
+							verbose = 2
+						else:
+							verbose = 0
+					elif arg in ["-i","--input-file"]:
+						get_next_parameter = [True,"-i"]
+					elif arg in ["-t","--tries"]:
+						get_next_parameter = [True,"-t"]
+					else:
+						raise ValueError(arg)
+				elif locations == [False]:
+					locations = [arg]
+				else:
+					return ["wget: cannot use '" + arg + "' as a source location as '" + location[0] + "' has already been defined"]
+		else:
+			return ["wget: missing operand"]
+		if input_file != False:
+			if not input_file.startswith("/"):
+				input_file = os.path.abspath(input_file)
+			if os.path.exists(input_file):
+				with open(input_file,"rb") as locations:
+					location.extend(locations.readlines())
+		default_file_mime_types = {"audio/aac":".aac","application/x-abiword":".abw","application/x-freearc":".arc","video/x-msvideo":".avi","application/vnd.amazon.ebook":".azw","application/octet-stream":".bin","image/bmp":".bmp","application/x-bzip":".bz","application/x-bzip2":".bz2","application/x-csh":".csh","text/css":".css","text/csv":".csv","application/msword":".doc","application/vnd.openxmlformats-officedocument.wordprocessingml.document":".docx","application/vnd.ms-fontobject":".eot","application/epub+zip":".epub","application/gzip":".gz","image/gif":".gif","text/html":".htm","text/html":".html","image/vnd.microsoft.icon":".ico","text/calendar":".ics","application/java-archive":".jar","image/jpeg":".jpeg","image/jpeg":".jpg","text/javascript":".js","application/json":".json","application/ld+json":".jsonld","audio/midi":".mid","audio/midi":".midi","text/javascript":".mjs","audio/mpeg":".mp3","video/mpeg":".mpeg","application/vnd.apple.installer+xml":".mpkg","application/vnd.oasis.opendocument.presentation":".odp","application/vnd.oasis.opendocument.spreadsheet":".ods","application/vnd.oasis.opendocument.text":".odt","audio/ogg":".oga","video/ogg":".ogv","application/ogg":".ogx","audio/opus":".opus","font/otf":".otf","image/png":".png","application/pdf":".pdf","application/php":".php","application/vnd.ms-powerpoint":".ppt","application/vnd.openxmlformats-officedocument.presentationml.presentation":".pptx","application/x-rar-compressed":".rar","application/rtf":".rtf","application/x-sh":".sh","image/svg+xml":".svg","application/x-shockwave-flash":".swf","application/x-tar":".tar","image/tiff":".tif","image/tiff":".tiff","video/mp2t":".ts","font/ttf":".ttf","text/plain":".txt","application/vnd.visio":".vsd","audio/wav":".wav","audio/webm":".weba","video/webm":".webm","image/webp":".webp","font/woff":".woff","font/woff2":".woff2","application/xhtml+xml":".xhtml","application/vnd.ms-excel":".xls","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":".xlsx","application/xml":".xml","application/vnd.mozilla.xul+xml":".xul","application/zip":".zip","video/3gpp":".3gp","video/3gpp2":".3g2","application/x-7z-compressed":".7z"}
+		resource_iteration = 0
+		wget_download_iteration = 0
+		for location in locations:
+			wget_download_iteration += 1
+			if verbose > 0:
+				self.output_method(0,"--" + datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + "-- " + location)
+			resource_iteration += 1
+			port = False
+			if location.startswith("https://"):
+				port = 443
+			if location.startswith("http://"):
+				port = 80
+			if location.startswith("ftp://"):
+				port = 21
+			if port == False:
+				response.append(self.output_method(0,"Unknown protocol for the resource '" + location + "'"))
+			else:
+				for x in range(tries):
+					try:
+						_, _, host, path = location.split("/", 3)
+					except:
+						try:
+							_, _, host, path = (location + "/").split("/", 3)
+						except:
+							response.append(self.output_method(0,"Unable to parse the host URI for '" + location + "'"))
+					if verbose > 0:
+						self.output_method(1,"Resolving " + location + " (" + host + ")... ")
+					addr = socket.getaddrinfo(host, port)[0][-1]
+					if verbose > 0:
+						try:
+							self.output_method(0,addr[0]+", " + str(list(filter(lambda x: x[0] == socket.AF_INET6, socket.getaddrinfo(host, port)))[0][4][0]))
+						except IndexError:
+							self.output_method(0,addr[0])
+					mysock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+					if verbose > 0:
+						self.output_method(1,"Connecting to " + location + " (" + host + ")|" + str(addr[0]) + "|:" + str(addr[1]) + "... ")
+					try:
+						socket_base = socket.create_connection(addr)
+						if port == 443:
+							socket_connect = ssl.create_default_context().wrap_socket(socket_base, server_hostname=host)
+						else:
+							socket_connect = socket_base
+						if verbose > 0:
+							self.output_method(0,"connected.")
+						ind = ("GET /" + path + " HTTP/1.0\r\nHost: " + host + "\r\n\r\n").encode()
+						socket_connect.send(ind)
+						if verbose > 0:
+							self.output_method(1,"HTTP request sent, awaiting response... ")
+						break
+					except socket.error:
+						pass
+					except exc:
+						pass
+				local_file = False
+				headers = True
+				content_length = False
+				content_type = False
+				download_progress = 0
+				download_progress_show = 0
+				download_buffer_rate = 5
+				download_buffer_size = 1024
+				try:
+					while True:
+						data = socket_connect.recv(download_buffer_size)
+						if headers:
+							headers = False
+							data = str(data.decode())
+							header_length = len(data)
+							data = data.split("\r\n")
+							if verbose > 0:
+								self.output_method(0,data[0][9:])
+							if not data[0][9:] in ["200 OK","301 Moved Permanently"]:
+								raise Exception("bad response")
+							expect_new_location = False
+							if data[0][9:] == "301 Moved Permanently":
+								expect_new_location = True
+							data_relay = False
+							for header in data:
+								if data_relay != False:
+									if data_relay == True:
+										data_relay = []
+									data_relay.append(bytes(header,"utf-8"))
+									continue
+								if header == "":
+									if data_relay == False:
+										data_relay = True
+								if verbose == 2:
+									self.output_method(0,header)
+								if header.startswith("Content-Length: "):
+									content_length = int(header[16:]) + header_length
+								elif header.startswith("Content-Type: "):
+									content_type = header[14:].split(";")[0]
+								elif header.startswith("Location: "):
+									if expect_new_location == True:
+										expect_new_location = header[10:]
+							if expect_new_location != False:
+								if expect_new_location == True:
+									if verbose > 0:
+										self.output_method(0,"Location: unknown")
+									raise Exception("bad response")
+								else:
+									if verbose > 0:
+										self.output_method(0,"Location: " + expect_new_location + " [following]")
+									locations.insert(resource_iteration,expect_new_location)
+									wget_download_iteration -= 1
+									raise Exception("301 Moved Permanently")
+							if data_relay != False:
+								if data_relay == True:
+									headers = True
+									continue
+							local_file = False
+							if len(path) > 0:
+								path = path.split("/")
+								path = path[-1]
+								path = path.split("?")
+								path = path[0]
+								local_file = open(path, "wb")
+							if content_type != False:
+								if len(path) == 0:
+									filename = False
+									if content_type in default_file_mime_types.keys():
+										filename = "index" + default_file_mime_types[content_type]
+									else:
+										filename = "download"
+									path = filename
+								elif content_type in list(default_file_mime_types.keys()):
+									filename = path
+									path = filename
+								local_file = open(path,"wb")
+							if content_length != False:
+								try:
+									if verbose == 1:
+										self.output_method([0,1][content_type != False],"Length: " + str(content_length) + " (" + str(round(content_length / math.pow(download_buffer_size,int(math.floor(math.log(content_length, download_buffer_size)))), 2)) + ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")[int(math.floor(math.log(content_length, download_buffer_size)))] + ")")
+										if content_type != False:
+											self.output_method(0," [" + content_type + "]")
+								except:
+									pass
+							if verbose > 0:
+								self.output_method(0,"Saving to: '" + path + "'")
+								if content_length != False:
+									self.output_method(1,path + "    [")
+								else:
+									self.output_method(0,path + "    ~  downloading...")
+							if data_relay != False:
+								data = data_relay
+							else:
+								continue
+						if local_file == False:
+							if verbose > 0:
+								response.append(self.output_method(0,"Unable to create a download location for the resource from '" + location + "'"))
+							else:
+								response.append("Unable to create a download location for the resource from '" + location + "'")
+							raise Exception("download location failure")
+						if len(data) <= 0:
+							break
+						download_progress += 1
+						if verbose > 0:
+							if content_length != False:
+								download_percentage = (download_progress * download_buffer_size)*(100/content_length)
+								if download_percentage > download_progress_show:
+									while download_percentage >= download_progress_show:
+										download_progress_show += download_buffer_rate
+										self.output_method(1,"=")
+						if type(data) == list:
+							for data_sub in data:
+								local_file.write(data_sub)
+						else:
+							local_file.write(data)
+				except Exception as e:
+					e = str(e)
+					if local_file != False:
+						local_file.close()
+					if e == "bad response":
+						if verbose > 0:
+							response.append(self.output_method(0,"'" + path  + "' failed to download"))
+						else:
+							response.append("'" + path + "' failed to download")
+					elif e in ["download location failure","301 Moved Permanently"]:
+						socket_connect.close()
+						socket_base.close()
+					if verbose > 0:
+						self.output_method(0,"")
+					continue
+				except:
+					if verbose > 0:
+						while download_progress_show < 100:
+							download_progress_show += download_buffer_rate
+							self.output_method(1," ")
+							pass
+				if content_length != False:
+					if content_length < (download_progress * download_buffer_size):
+						download_progress = content_length / download_buffer_size
+					if verbose > 0:
+						try:
+							self.output_method(0,"] " + str(round(content_length / math.pow(download_buffer_size,int(math.floor(math.log((download_progress * download_buffer_size), download_buffer_size)))), 2)) + ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")[int(math.floor(math.log((download_progress * download_buffer_size), download_buffer_size)))])
+						except:
+							self.output_method(0,"]")
+				if content_length == False:
+					content_length = "Unknown"
+				if download_progress > 0:
+					if verbose > 0:
+						if content_length != "Unknown":
+							response.append(self.output_method(0,"'" + path + "' saved [" + str(int(download_progress * download_buffer_size)) + "/" + str(content_length) + "]"))
+						else:
+							response.append(self.output_method(0,"'" + path + "' saved [" + str(int(download_progress * download_buffer_size)) + "]"))
+					else:
+						response.append(datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " URL:" + location + " [" + str(int(download_progress * download_buffer_size)) + "] -> '" + path + "' [" + str(wget_download_iteration) + "]")
+				else:
+					if verbose > 0:
+						response.append(self.output_method(0,"'" + path  + "' failed to download"))
+					else:
+						response.append("'" + path + "' failed to download")
+				socket_connect.close()
+				socket_base.close()
+				if verbose > 0:
+					self.output_method(0,"")
+		if verbose > 0:
+			response = []
+		return response
 
 	def help(self,args=[]):
 		return ["Python terminal, version " + " ".join(self.uname(["-v"])) + " (" + " ".join(self.uname(["-r"])) + ")",
@@ -1313,13 +1573,13 @@ def terminal_parse(command = "", output = True, terminal = False):
 		piped_commands = []
 		for command in commands:
 			original_command = command
-			command = shlex.split(command)
+			command = parser_split(command)
 			command_bases = terminal.get_all_command_bases()
 			if not command[0] in command_bases:
 				return str(command[0]) + ": Command not found!"
 			else:
 				if command_bases[command[0]][4]:
-					command = shlex.split(original_command,posix=False)
+					command = parser_split(original_command,posix=False)
 				piped_commands.append(command)
 		del commands
 		end_of_pipe = len(piped_commands)
@@ -1340,7 +1600,6 @@ def terminal_parse(command = "", output = True, terminal = False):
 								break
 						if len(command[1:]) == max_param_operations:
 							max_param_operations = None
-						start_param_execution_from = 1
 						new_process = system.proc.new(" ".join(command),output)
 						if new_process[0]:
 							terminal.set_proc(new_process[1])
@@ -1376,6 +1635,7 @@ def terminal_parse(command = "", output = True, terminal = False):
 									operator_values.append(arg)
 								elif arg == "<":
 									pass
+							output_stat = False
 							if output_type != False:
 								for to_file in operation_to_file:
 									if len(to_file) > 0:
@@ -1388,34 +1648,44 @@ def terminal_parse(command = "", output = True, terminal = False):
 												file = terminal.get_cwd() + "/" + file
 											file = os.path.abspath(file)
 											try:
+												existsing_lines = 0
+												if output_type != "wb":
+													if os.path.exists(file):
+														existsing_lines = sum(1 for line in open(file,"rb"))
 												with open(file,output_type) as output_file:
+													if existsing_lines == 0:
+														output_file.write(bytes(str(response.pop(0)),"utf-8"))
 													for input_to_output in response:
-														output_file.write(bytes(str(command_bases[command[0]][1][1]+input_to_output),"utf-8"))
+														output_file.write(bytes(str("\n" + input_to_output),"utf-8"))
+													response = []
 											except Exception as e:
-												response.append("Error: unable redirect output to be written to file '" + file_raw_location + "' as the encoding type is not dynamically supported")
+												output_stat = True
+												response = "Error: unable redirect output to be written to file '" + file_raw_location + "' as the encoding type is not dynamically supported"
 									else:
-										response.append("Error: syntax error where output was expected")
+										output_stat = True
+										response = "Error: syntax error where output was expected"
 							pipe_iteration += 1
 							if pipe_iteration == end_of_pipe:
-								if output == True:
-									if command_bases[command[0]][1][0] == "null":
-										return command_bases[command[0]][1][0] == None
-									if command_bases[command[0]][1][0] == "string":
-										if response != None:
-											return str(response)
-									elif command_bases[command[0]][1][0] == "join":
-										if response != None:
-											return command_bases[command[0]][1][1].join(response)
-									elif command_bases[command[0]][1][0] == "join/void":
-										if response != None:
-											return command_bases[command[0]][1][1].join(response)
-									elif command_bases[command[0]][1][0] == "string/void":
-										if response != None:
-											return str(response)
+								if output_type == False:
+									if output == True:
+										if command_bases[command[0]][1][0] == "null" and not output_stat:
+											return command_bases[command[0]][1][0] == None
+										elif command_bases[command[0]][1][0] == "string" or output_stat:
+											if response != None:
+												return str(response)
+										elif command_bases[command[0]][1][0] == "join":
+											if response != None:
+												return command_bases[command[0]][1][1].join(response)
+										elif command_bases[command[0]][1][0] == "join/void":
+											if response != None:
+												return command_bases[command[0]][1][1].join(response)
+										elif command_bases[command[0]][1][0] == "string/void":
+											if response != None:
+												return str(response)
+										else:
+											return response
 									else:
 										return response
-								else:
-									return response
 							else:
 								piped_command = command[0]
 								terminal.pipe_in = response
@@ -1424,7 +1694,52 @@ def terminal_parse(command = "", output = True, terminal = False):
 			else:
 				return "Command not found!"
 
-
+def parser_split(string,posix=True):
+	string = [char for char in string]
+	position_of_occurence = []
+	iteration_of_position = 0
+	within_posix = False
+	sibling_construct = None
+	for char in string:
+		if char in ["\"","\'"] and sibling_construct == None or char == sibling_construct:
+			occurence_restructured = []
+			completed_submask = False
+			for submask in position_of_occurence:
+				if len(submask) == 1:
+					submask.append(iteration_of_position)
+					completed_submask = True
+				occurence_restructured.append(submask)
+				if completed_submask:
+					break
+			within_posix = False
+			sibling_construct = None
+			if not completed_submask:
+				within_posix = True
+				sibling_construct = char
+				occurence_restructured.append([iteration_of_position])
+			position_of_occurence = occurence_restructured
+		elif sibling_construct == None:
+			position_of_occurence.append((char,within_posix))
+		iteration_of_position += 1
+	join_by = []
+	temp_string = []
+	for encapsulated in position_of_occurence:
+		if len(encapsulated) == 1:
+			encapsulated.append(-1)
+		if encapsulated[1] == False:
+			temp_string.append(encapsulated[0])
+		else:
+			join_by.extend("".join(temp_string).split())
+			if encapsulated[1] < 0:
+				continue
+			temp_string = []
+			if posix:
+				encapsulated[0] += 1
+				encapsulated[1] -= 1
+			join_by.append("".join(string[encapsulated[0]:encapsulated[1] + 1]))
+	if len(temp_string) > 0:
+		join_by.extend("".join(temp_string).split())
+	return join_by
 
 
 terminal = core()

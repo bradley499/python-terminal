@@ -2,4 +2,4 @@
 # version.py
 
 __version__ = "0.0.1"
-__release__ = 96
+__release__ = 601

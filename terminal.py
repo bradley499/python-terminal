@@ -14,9 +14,9 @@ def term_input():
 
 def term_output(output,mode = 0):
 	if mode == 0:
-		print(output)
+		print(output, flush=True)
 	elif mode == 1:
-		print(output,end="")
+		print(output,end="",flush=True)
 	else:
 		term_output(output,0) # rebound output to standard outputting mode
 
