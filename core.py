@@ -1247,6 +1247,7 @@ class core(threading.Thread):
 		input_file = False
 		locations = [False]
 		tries = 20
+		timeout = 9
 		get_next_parameter = [False, False]
 		if len(args) >= 1:
 			for arg in args:
@@ -1259,7 +1260,7 @@ class core(threading.Thread):
 								continue
 					elif get_next_parameter[1] == "-i":
 						input_file = arg
-				if arg.startswith("-"):
+				elif arg.startswith("-"):
 					if arg in ["-v","--verbose","-nv","--no-verbose"]:
 						if arg in ["-v","--verbose"]:
 							verbose = 2
@@ -1274,18 +1275,29 @@ class core(threading.Thread):
 				elif locations == [False]:
 					locations = [arg]
 				else:
-					return ["wget: cannot use '" + arg + "' as a source location as '" + location[0] + "' has already been defined"]
+					return ["wget: cannot use '" + arg + "' as a source location as '" + locations[0] + "' has already been defined"]
 		else:
 			return ["wget: missing operand"]
 		if input_file != False:
 			if not input_file.startswith("/"):
 				input_file = os.path.abspath(input_file)
 			if os.path.exists(input_file):
-				with open(input_file,"rb") as locations:
-					location.extend(locations.readlines())
+				if os.path.isfile(input_file):
+					print(input_file)
+					if locations == [False]:
+						locations = []
+					with open(input_file,"rb") as locations_from_file:
+						for resource_location in locations_from_file.readlines():
+							locations.append(str(resource_location.decode().rstrip()))
+				else:
+					return ["wget: input file does not exists"]
+			else:
+				return ["wget: input file does not exists"]
 		default_file_mime_types = {"audio/aac":".aac","application/x-abiword":".abw","application/x-freearc":".arc","video/x-msvideo":".avi","application/vnd.amazon.ebook":".azw","application/octet-stream":".bin","image/bmp":".bmp","application/x-bzip":".bz","application/x-bzip2":".bz2","application/x-csh":".csh","text/css":".css","text/csv":".csv","application/msword":".doc","application/vnd.openxmlformats-officedocument.wordprocessingml.document":".docx","application/vnd.ms-fontobject":".eot","application/epub+zip":".epub","application/gzip":".gz","image/gif":".gif","text/html":".htm","text/html":".html","image/vnd.microsoft.icon":".ico","text/calendar":".ics","application/java-archive":".jar","image/jpeg":".jpeg","image/jpeg":".jpg","text/javascript":".js","application/json":".json","application/ld+json":".jsonld","audio/midi":".mid","audio/midi":".midi","text/javascript":".mjs","audio/mpeg":".mp3","video/mpeg":".mpeg","application/vnd.apple.installer+xml":".mpkg","application/vnd.oasis.opendocument.presentation":".odp","application/vnd.oasis.opendocument.spreadsheet":".ods","application/vnd.oasis.opendocument.text":".odt","audio/ogg":".oga","video/ogg":".ogv","application/ogg":".ogx","audio/opus":".opus","font/otf":".otf","image/png":".png","application/pdf":".pdf","application/php":".php","application/vnd.ms-powerpoint":".ppt","application/vnd.openxmlformats-officedocument.presentationml.presentation":".pptx","application/x-rar-compressed":".rar","application/rtf":".rtf","application/x-sh":".sh","image/svg+xml":".svg","application/x-shockwave-flash":".swf","application/x-tar":".tar","image/tiff":".tif","image/tiff":".tiff","video/mp2t":".ts","font/ttf":".ttf","text/plain":".txt","application/vnd.visio":".vsd","audio/wav":".wav","audio/webm":".weba","video/webm":".webm","image/webp":".webp","font/woff":".woff","font/woff2":".woff2","application/xhtml+xml":".xhtml","application/vnd.ms-excel":".xls","application/vnd.openxmlformats-officedocument.spreadsheetml.sheet":".xlsx","application/xml":".xml","application/vnd.mozilla.xul+xml":".xul","application/zip":".zip","video/3gpp":".3gp","video/3gpp2":".3g2","application/x-7z-compressed":".7z"}
 		resource_iteration = 0
 		wget_download_iteration = 0
+		if locations == [False]:
+			return ["wget: no URI was provided"]
 		for location in locations:
 			wget_download_iteration += 1
 			if verbose > 0:
@@ -1301,6 +1313,7 @@ class core(threading.Thread):
 			if port == False:
 				response.append(self.output_method(0,"Unknown protocol for the resource '" + location + "'"))
 			else:
+				resolve_failure = False
 				for x in range(tries):
 					try:
 						_, _, host, path = location.split("/", 3)
@@ -1310,8 +1323,18 @@ class core(threading.Thread):
 						except:
 							response.append(self.output_method(0,"Unable to parse the host URI for '" + location + "'"))
 					if verbose > 0:
-						self.output_method(1,"Resolving " + location + " (" + host + ")... ")
-					addr = socket.getaddrinfo(host, port)[0][-1]
+						if not resolve_failure or verbose == 2:
+							self.output_method(1,"Resolving " + location + " (" + host + ")... ")
+					try:
+						addr = socket.getaddrinfo(host, port)[0][-1]
+					except socket.gaierror as e:
+						if verbose > 1:
+							response.append(self.output_method(0,"failed [" + str(x+1) + "]"))
+						resolve_failure = True
+						continue
+					if resolve_failure and verbose > 1:
+						self.output_method(0,"Resolving " + location + " (" + host + ")... ")
+					resolve_failure = False
 					if verbose > 0:
 						try:
 							self.output_method(0,addr[0]+", " + str(list(filter(lambda x: x[0] == socket.AF_INET6, socket.getaddrinfo(host, port)))[0][4][0]))
@@ -1322,6 +1345,7 @@ class core(threading.Thread):
 						self.output_method(1,"Connecting to " + location + " (" + host + ")|" + str(addr[0]) + "|:" + str(addr[1]) + "... ")
 					try:
 						socket_base = socket.create_connection(addr)
+						socket_base.settimeout(timeout)
 						if port == 443:
 							socket_connect = ssl.create_default_context().wrap_socket(socket_base, server_hostname=host)
 						else:
@@ -1332,11 +1356,18 @@ class core(threading.Thread):
 						socket_connect.send(ind)
 						if verbose > 0:
 							self.output_method(1,"HTTP request sent, awaiting response... ")
-						break
-					except socket.error:
-						pass
+							break
+					except (socket.error, socket.timeout) as e:
+						if verbose > 0:
+							self.output_method(0,"Unable to establish a connection to " + host)
+						else:
+							response.append("Unable to establish a connection to " + host)
 					except exc:
 						pass
+				if resolve_failure:
+					if verbose <= 1:
+						response.append(self.output_method(0,"failed"))
+					continue
 				local_file = False
 				headers = True
 				content_length = False
@@ -1350,15 +1381,24 @@ class core(threading.Thread):
 						data = socket_connect.recv(download_buffer_size)
 						if headers:
 							headers = False
-							data = str(data.decode())
 							header_length = len(data)
-							data = data.split("\r\n")
+							verification_position = 9
+							try:
+								data = data.decode()
+								data = data.split("\r\n")
+							except:
+								if len(str(data).split("\\r\\n")) <= 1:
+									pass
+								else:
+									verification_position = 11
+									data = str(data).split("\\r\\n")
+
 							if verbose > 0:
-								self.output_method(0,data[0][9:])
-							if not data[0][9:] in ["200 OK","301 Moved Permanently"]:
+								self.output_method(0,data[0][verification_position:])
+							if not data[0][verification_position:] in ["200 OK","301 Moved Permanently"]:
 								raise Exception("bad response")
 							expect_new_location = False
-							if data[0][9:] == "301 Moved Permanently":
+							if data[0][verification_position:] == "301 Moved Permanently":
 								expect_new_location = True
 							data_relay = False
 							for header in data:
@@ -1400,7 +1440,13 @@ class core(threading.Thread):
 								path = path[-1]
 								path = path.split("?")
 								path = path[0]
-								local_file = open(path, "wb")
+								filename = path
+								if os.path.exists(filename):
+									duplication_prevention = 1
+									while os.path.exists(str(filename) + "." + str(duplication_prevention)):
+										duplication_prevention += 1
+									filename = filename + "." + str(duplication_prevention)
+								local_file = open(filename, "wb")
 							if content_type != False:
 								if len(path) == 0:
 									filename = False
@@ -1412,6 +1458,11 @@ class core(threading.Thread):
 								elif content_type in list(default_file_mime_types.keys()):
 									filename = path
 									path = filename
+								if os.path.exists(path):
+									duplication_prevention = 1
+									while os.path.exists(str(path) + "." + str(duplication_prevention)):
+										duplication_prevention += 1
+									path = path + "." + str(duplication_prevention)
 								local_file = open(path,"wb")
 							if content_length != False:
 								try:
@@ -1452,6 +1503,21 @@ class core(threading.Thread):
 								local_file.write(data_sub)
 						else:
 							local_file.write(data)
+				except socket.timeout as e:
+					if content_length != "Unknown":
+						download_rate_display_end = str(int(download_progress * download_buffer_size)) + "/" + str(content_length)
+					else:
+						download_rate_display_end = str(int(download_progress * download_buffer_size))
+					if verbose > 0:
+						if content_length != False:
+							while download_progress_show < 100:
+								download_progress_show += download_buffer_rate
+								self.output_method(1," ")
+								pass
+						self.output_method(0, "] saved [" + str(download_rate_display_end) + "] - Connection timed out")
+					else:
+						response.append(location + " - Connection timed out")
+					continue
 				except Exception as e:
 					e = str(e)
 					if local_file != False:
@@ -1469,10 +1535,11 @@ class core(threading.Thread):
 					continue
 				except:
 					if verbose > 0:
-						while download_progress_show < 100:
-							download_progress_show += download_buffer_rate
-							self.output_method(1," ")
-							pass
+						if content_length != False:
+							while download_progress_show < 100:
+								download_progress_show += download_buffer_rate
+								self.output_method(1," ")
+								pass
 				if content_length != False:
 					if content_length < (download_progress * download_buffer_size):
 						download_progress = content_length / download_buffer_size
@@ -1727,7 +1794,7 @@ def parser_split(string,posix=True):
 		if len(encapsulated) == 1:
 			encapsulated.append(-1)
 		if encapsulated[1] == False:
-			temp_string.append(encapsulated[0])
+			temp_string.append(encapsulated[0].replace("="," "))
 		else:
 			join_by.extend("".join(temp_string).split())
 			if encapsulated[1] < 0:
