@@ -26,6 +26,7 @@ This project is aimed to be used in an encapsulated environment (although it is 
  + hostname
  + grep
  + uniq
+ + wget
  + clear
  + help
  + man

@@ -1283,7 +1283,6 @@ class core(threading.Thread):
 				input_file = os.path.abspath(input_file)
 			if os.path.exists(input_file):
 				if os.path.isfile(input_file):
-					print(input_file)
 					if locations == [False]:
 						locations = []
 					with open(input_file,"rb") as locations_from_file:
@@ -1308,8 +1307,6 @@ class core(threading.Thread):
 				port = 443
 			if location.startswith("http://"):
 				port = 80
-			if location.startswith("ftp://"):
-				port = 21
 			if port == False:
 				response.append(self.output_method(0,"Unknown protocol for the resource '" + location + "'"))
 			else:
@@ -1392,13 +1389,12 @@ class core(threading.Thread):
 								else:
 									verification_position = 11
 									data = str(data).split("\\r\\n")
-
 							if verbose > 0:
-								self.output_method(0,data[0][verification_position:])
-							if not data[0][verification_position:] in ["200 OK","301 Moved Permanently"]:
+								self.output_method(0,data[0][verification_position:(verification_position+3)])
+							if not data[0][verification_position:(verification_position+3)] in ["200","301","302"]:
 								raise Exception("bad response")
 							expect_new_location = False
-							if data[0][verification_position:] == "301 Moved Permanently":
+							if data[0][verification_position:(verification_position+3)] in ["301","302"]:
 								expect_new_location = True
 							data_relay = False
 							for header in data:
