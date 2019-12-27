@@ -27,7 +27,7 @@ class core(threading.Thread):
 		threading.Thread.__init__(self)
 
 	def set_all_command_bases(self, args=[]):
-		self.command_bases = {"pwd":[self.get_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"exit":[self.exit,["null"],False,False,False],"clear":[self.clear,["null"],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"wget":[self.wget,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
+		self.command_bases = {"pwd":[self.get_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"exit":[self.exit,["null"],False,False,False],"clear":[self.clear,["null"],False,False,False],"echo":[self.echo,["join/void"," "],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"wget":[self.wget,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
 		return True
 
 	def get_all_command_bases(self, args=[]):
@@ -1083,6 +1083,31 @@ class core(threading.Thread):
 			self.change_directory([current_base_dir])
 		return response
 
+	def echo(self,args=[]):
+		response = []
+		newline = True
+		escape_interpretation = False
+		content = []
+		for arg in args:
+			if arg.startswith("-"):
+				if arg == "-n":
+					newline = False
+				elif arg == "-e":
+					escape_interpretation = True
+				elif arg == "-E":
+					escape_interpretation = False
+				else:
+					raise ValueError(arg)
+			else:
+				content.append(arg)
+		for part in content:
+			if escape_interpretation:
+				part = bytes(part, "utf-8").decode("unicode_escape")
+			response.append(part)
+		if len(response) == 0 and newline:
+			response.append("")
+		return response
+
 	def grep(self,args=[]):
 		if self.pipe_in == None:
 			return ["grep: missing piped input stream"]
@@ -1657,10 +1682,13 @@ def terminal_parse(command = "", output = True, terminal = False):
 					try:
 						max_param_operations = 1
 						for parameter in command[1:]:
-							if not parameter[0] in [">","<"]:
-								max_param_operations += 1
-							else:
-								break
+							try:
+								if not parameter[0] in [">","<"]:
+									max_param_operations += 1
+								else:
+									break
+							except:
+								pass
 						if len(command[1:]) == max_param_operations:
 							max_param_operations = None
 						new_process = system.proc.new(" ".join(command),output)
@@ -1677,6 +1705,7 @@ def terminal_parse(command = "", output = True, terminal = False):
 							command_data = command
 							operator_values = []	
 							get_next_output = False
+							here_document = False
 							output_type = False
 							operation_to_file = []
 							output_type_type_verification = -1
@@ -1694,10 +1723,18 @@ def terminal_parse(command = "", output = True, terminal = False):
 									operator_values = []
 									get_next_output = True
 								elif get_next_output:
-									operation_to_file[output_type_type_verification][1].append(arg)
-									operator_values.append(arg)
+									if here_document:
+										here_document = arg
+									else:
+										operation_to_file[output_type_type_verification][1].append(arg)
+										operator_values.append(arg)
 								elif arg == "<":
 									pass
+								elif arg == "<<":
+									get_next_output = True
+									here_document = True
+							if here_document == True:
+								return "Error: here document was requested but not defined"
 							output_stat = False
 							if output_type != False:
 								for to_file in operation_to_file:
@@ -1730,25 +1767,30 @@ def terminal_parse(command = "", output = True, terminal = False):
 							pipe_iteration += 1
 							if pipe_iteration == end_of_pipe:
 								if output_type == False:
+									return_response = None
 									if output == True:
 										if command_bases[command[0]][1][0] == "null" and not output_stat:
-											return command_bases[command[0]][1][0] == None
+											return_response = command_bases[command[0]][1][0] == None
 										elif command_bases[command[0]][1][0] == "string" or output_stat:
 											if response != None:
-												return str(response)
+												return_response = str(response)
 										elif command_bases[command[0]][1][0] == "join":
 											if response != None:
-												return command_bases[command[0]][1][1].join(response)
+												return_response = command_bases[command[0]][1][1].join(response)
 										elif command_bases[command[0]][1][0] == "join/void":
 											if response != None:
-												return command_bases[command[0]][1][1].join(response)
+												return_response = command_bases[command[0]][1][1].join(response)
 										elif command_bases[command[0]][1][0] == "string/void":
 											if response != None:
-												return str(response)
+												return_response = str(response)
 										else:
-											return response
+											return_response = response
 									else:
-										return response
+										return_response = response
+									if return_response != None:
+										if here_document != False:
+											return_response += "\n" + here_document
+										return return_response
 							else:
 								piped_command = command[0]
 								terminal.pipe_in = response
