@@ -1119,6 +1119,7 @@ class core(threading.Thread):
 			quiet = False
 			max_lines = -1
 			search = None
+			color = False
 			get_next_parameter = [False,False]
 			for arg in args:
 				if get_next_parameter[0]:
@@ -1139,6 +1140,8 @@ class core(threading.Thread):
 						get_next_parameter = [True,"-m"]
 					elif arg in ["-q","--quiet","--silent"]:
 						quiet = True
+					elif arg in ["--color","--colour"]:
+						color = True
 					else:
 						raise ValueError(arg)
 				elif parser_split(arg) != arg:
@@ -1160,6 +1163,8 @@ class core(threading.Thread):
 				if entry.find(search) >= 0:
 					if quiet:
 						return None
+					if color:
+						actual_entry = actual_entry.replace(search,"\033[1m\033[31m" + search + "\033[0m")
 					response_raw.append((entry_line_number,actual_entry))
 					if max_lines >= 0:
 						if len(response_raw) >= max_lines:
