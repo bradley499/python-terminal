@@ -1,0 +1,8 @@
+NAME
+	unlink
+SYNOPSIS
+	link FILE
+ABOUT
+	call the unlink function to remove the specified file
+DESCRIPTION
+	Call the unlink function to remove the specified FILE.

@@ -1,0 +1,22 @@
+NAME
+	ls
+SYNOPSIS
+	ls [OPTION]
+ABOUT
+	list directory contents
+DESCRIPTION
+	List information about the files.
+	-a, --all
+		do not ignore entries starting with
+	-A, --almost-all
+		do not list implied . and ..
+	-r, --reverse
+		reverse order while sorting
+	-p
+		append / indicator to directories
+	-m
+		fill width with a comma separated list of entries
+	-q, --quote-name
+ 		enclose entry names in double quotes
+	-n, --literal
+		print entry names without quoting

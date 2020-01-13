@@ -1,0 +1,15 @@
+NAME
+	cp
+SYNOPSIS
+	cp [OPTION]... SOURCE DEST
+	cp [OPTION]... SOURCE... DIRECTORY
+	cp [OPTION]... DIRECTORY SOURCE...
+ABOUT
+	copy files and directories
+DESCRIPTION
+	Copy SOURCE to DEST, or multiple SOURCE(s) to DIRECTORY.
+	Mandatory arguments to long options are mandatory for short options too.
+	-R, -r, --recursive
+		copy directories recursively
+	-v, -verbose
+		explain what is being done

@@ -3,6 +3,11 @@
 import core
 import proc
 from threading import Thread
-sys = core.core()
 global proc
+
+base_dir = "root"
+if base_dir == False:
+	print("STOP!")
+	exit()
+sys = core.core(base_dir)
 proc = proc.proc()

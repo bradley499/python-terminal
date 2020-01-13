@@ -1,0 +1,8 @@
+NAME
+	help
+SYNOPSIS
+	help
+ABOUT
+	Gives information about the shell and commands
+DESCRIPTION
+	Outputs information about the shell and commands along with what they do.

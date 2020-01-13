@@ -1,0 +1,17 @@
+NAME
+	wget
+SYNOPSIS
+	wget [OPTION]... [URL]...
+ABOUT
+	The non-interactive network downloader
+DESCRIPTION
+	A utility for non-interactive download of files from the Web. It supports HTTP, HTTPS, and FTP protocols,
+	-v, --verbose
+		Turn on verbose output, with all the available data. The default output is verbose.
+	-nv, --no-verbose
+		Turn off verbose without being completely quiet (use -q for that), which means that error messages and basic information still get printed.
+	-i, --input-file
+		Read URLs from a local file.
+		If this function is used, no URLs need be present on the command line. If there are URLs both on the command line and in an input file, those on the command lines will be the first ones to be retrieved.
+	-t, --tries
+		Set number of tries to number. The default is to retry 20 times.

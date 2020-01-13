@@ -1,0 +1,8 @@
+NAME
+	logout
+SYNOPSIS
+	logout
+ABOUT
+	exits a session on the system
+DESCRIPTION
+	When you terminate a login shell (via the commands 'exit', 'logout'), you are logged out completely

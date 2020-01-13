@@ -3,6 +3,7 @@ This is a project that emulates standard Linux/Unix commands along with associat
 
 This project is aimed to be used in an encapsulated environment (although it is not nessecary). And shall mimic basic/key Linux/Unix commands, the project is currently aiming to mimic the following commands (+ implemented / - not implemenetd yet):
  ```diff
+ + alias
  + cat 
  + cd
  + exit
@@ -11,6 +12,8 @@ This project is aimed to be used in an encapsulated environment (although it is 
  + tail
  - kill
  + ls
+ + login
+ + logout
  + mkdir
  + rmdir
  + link
@@ -37,5 +40,4 @@ This project is aimed to be used in an encapsulated environment (although it is 
 Simply execute the file named ```terminal.py``` to run the program.
 
 #### Future plans
-* Restrict the terminal to a base directory so that it cannot branch out into core system directories
 * Add support for the Linux/Unix `chmod` command to be mimicked

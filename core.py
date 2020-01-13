@@ -12,22 +12,36 @@ import datetime
 import math
 import socket
 import ssl
+import hashlib
+import binascii
+import random
+import re
+from pathlib import Path
+
+#testing
+import inspect
 
 class core(threading.Thread):
-	def __init__(self):
+	def __init__(self,base_dir=False):
 		self.set_all_command_bases()
 		self.dir = False
 		self.pipe_in = None
-		self.set_cwd(os.getcwd())
 		self.process_id = None
-		self.input_method_reference = [[None,False],[None,False]]
+		self.input_method_reference = [[None,False],[None,False],[None,False]]
 		self.output_method_reference = [[None,False],[None,False]]
 		self.definition_complete = False
-		self.base_directory = os.getcwd()
+		self.base_directory = base_dir
+		self.rel_base_directory = os.getcwd()
+		self.env_vars = {}
+		self.alias_vars = {}
+		self.stable = False
+		self.user = None
+		self.group = None
+		self.set_cwd(self.rel_base_directory)
 		threading.Thread.__init__(self)
 
 	def set_all_command_bases(self, args=[]):
-		self.command_bases = {"pwd":[self.get_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"exit":[self.exit,["null"],False,False,False],"clear":[self.clear,["null"],False,False,False],"echo":[self.echo,["join/void"," "],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"wget":[self.wget,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
+		self.command_bases = {"pwd":[self.get_display_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"clear":[self.clear,["null"],False,False,False],"echo":[self.echo,["join/void"," "],False,False,False],"touch":[self.touch,["join/void"," "],False,False,False],"alias":[self.alias,["join/void","\n"],False,False,True],"login":[self.login,["join/void","\n"],False,False,False],"logout":[self.logout,["join/void","\n"],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"wget":[self.wget,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
 		return True
 
 	def get_all_command_bases(self, args=[]):
@@ -35,26 +49,268 @@ class core(threading.Thread):
 		return self.command_bases
 
 	def set_definition(self,complete = False):
-		self.definition_complete = complete
+		self.definition_complete = complete == True
 		system.proc.set_output_method(self.output_method_reference[0][0])
+		if self.definition_complete:
+			self.output_method(1,"Scanning for file system... ")
+			if self.base_directory != False:
+				base_dir_exists = self.change_directory([self.base_directory]) == None
+				self.output_method(0,"[" + {True:"Success",False:"Failed"}[base_dir_exists] + "]")
+				if not base_dir_exists:
+					self.output_method(1,"Creating file system (" + self.base_directory + ")... ")
+					base_dir_exists = len(self.create_directory([self.base_directory])) == 0
+					self.output_method(0,"[" + {True:"Success",False:"Failed"}[base_dir_exists] + "]")
+					if self.change_directory([self.base_directory]) != None:
+						self.output_method(0,"Failed to boot!")
+						self.output_method(0,"Unable to securely created restricted filesystem,")
+						self.output_method(0,"which resulted in the systeming exitting the boot")
+						self.output_method(0,"sequence; system will not boot further. Error in:")
+						self.output_method(0,self.base_directory)
+						self.base_directory = False
+						return False
+			else:
+				self.base_directory = os.getcwd()
+			self.change_directory(self.rel_base_directory)
+			self.change_directory(["/"])
+			self.base_directory = os.path.abspath(self.base_directory)
+		self.stable = True
+		self.change_directory(["/"])
+		self.output_method(1,"Unpacking file system...    ")
+		self.output_method(0,"[Success]")
+		#if self.change_directory(["/usr/share/man"]) != None:
+		#	self.create_directory(["/usr/share/man","-p"])
+		#self.change_directory(["/"])
+		#local_docs = self.change_directory(["/usr/share/man"]) == None
+		#if local_docs:
+		#	local_docs = self.ls(["-A","-p","--color","never"])
+		#	valid_local_docs = []
+		#	for local_doc_reference in local_docs:
+		#		if local_doc_reference.endswith(".man"):
+		#			valid_local_docs.append(local_doc_reference)
+		#	local_docs = valid_local_docs
+		#	del valid_local_docs
+		#docs_transfer_iteration = 0
+		#doc_reference_location = os.listdir(self.rel_base_directory + "/_docs/")
+		#for doc in doc_reference_location:
+		#	docs_transfer_iteration += 1
+		#	if doc not in local_docs:
+		#		self.link([self.rel_base_directory + "/_docs/"+doc,doc])
+		#if docs_transfer_iteration == 0:
+		#	self.output_method(0,"[Failed]")
+		#else:
+		#	self.output_method(0,"[" + {True:"Success",False:"Partial"}[docs_transfer_iteration == len(doc_reference_location)] + "]")
+		#self.change_directory(["/"])
+		self.output_method(1,"Discovering environments... ")
+		invalid_conf_files = []
+		if self.change_directory(["/etc"]) != None:
+			if self.change_directory(["etc"]) != None:
+				self.output_method(0,"[Failed]")
+		self.change_directory(["/"])
+		if self.change_directory(["etc"]) == None:
+			directory_contents = self.ls(["-A","-p","--color","never"])
+			for file in directory_contents:
+				if file.endswith("/"):
+					continue
+				elif file.endswith(".defs"):
+					env_conf = file[0:-5]
+					self.env_vars[env_conf] = []
+					with open(file,"r") as file_contents:
+						file_contents = file_contents.readlines()
+						if len(file_contents) == 0:
+							invalid_conf_files.append(env_conf)
+							continue
+						for variable in file_contents:
+							if "=" in variable:
+								variable = variable.split("=")
+								if len(variable) > 2:
+									variable[1] = variable[1:].join("=")
+								elif len(variable) == 1:
+									variable[1] = ""
+								variable[1] = variable[1].rstrip()
+								iteration_position = 0
+								for variable_data in self.env_vars[env_conf]:
+									if variable_data[0] != variable[0]:
+										iteration_position += 1
+										continue
+									else:
+										del self.env_vars[env_conf][iteration_position]
+										break
+								del iteration_position
+								self.env_vars[env_conf].append(variable)
+								del variable
+							else:
+								del self.env_vars[env_conf]
+								invalid_conf_files.append(env_conf)
+								break
+		self.change_directory(["/"])
+		if self.change_directory(["etc"]) == None:
+			if self.env_vars == []:
+				self.output_method(0,"[Failed]")
+			else:
+				self.output_method(0,"[" + {True:"Success",False:"Partial"}[len(invalid_conf_files) == 0] + "]")
+				if len(invalid_conf_files) > 0:
+					for failed_env_var_host in invalid_conf_files:
+						self.output_method(0,"Invalid environment host: " + failed_env_var_host)
+		self.change_directory(["/"])
+		self.output_method(1,"Generating relations...     ")
+		self.alias(["exit","'logout'"])
+		self.alias(["la","'ls -A'"])
+		self.alias(["ls","'ls --color=auto'"])
+		self.output_method(0,"[Success]")
+		self.output_method(1,"Gathering user groups...    ")
+		system_usergroup_ids = self.id(["-G"])
+		system_usergroup_id = {"system":False,"root":False}
+		for base_group in system_usergroup_id.keys():
+			base_group = base_group
+			for gid in system_usergroup_ids:
+				gid = gid.split("(")
+				if len(gid) > 2:
+					gid[1] = "(".join(gid[1:])
+				gid[1] = gid[1].split(")")
+				if len(gid[1]) > 2 and type(gid[1]) == list:
+					gid[1] = gid[1][:-1]
+				if len(gid[1]) > 1 and type(gid[1]) == list:
+					gid[1] = gid[1][0]
+				if base_group == gid[1]:
+					gid[0] = gid[0].split("gid=")
+					if len(gid[0]) > 1 and type(gid[0]) == list:
+						gid[0] = gid[0][1:]
+						gid[0] = gid[0][0]
+						if gid[0].isdigit():
+							system_usergroup_id[base_group] = int(gid[0])
+		if False in [system_group_id != False for system_group_id in system_usergroup_id.values()]:
+			self.output_method(0,"[Missing]")
+			self.output_method(1,"Creating user groups...     ")
+			for base_group in system_usergroup_id.keys():
+				if system_usergroup_id[base_group] == False:
+					system_usergroup_id[base_group] = self.groupadd([base_group])
+		self.output_method(0,"[Success]")
+		self.output_method(1,"Searching for users...      ")
+		valid_uids = []
+		if os.path.exists(self.base_directory + "/etc/passwd"):
+			uids = self.concatenate(["/etc/passwd"])
+			for uid in uids:
+				uid = uid.split(":")
+				if len(uid) == 5:
+					uid.pop()
+					if uid[3].isdigit():
+						if uid[2].isdigit():
+							uid[2] = int(uid[2])
+							uid = [int(uid.pop(3)),str(uid.pop(0)),uid]
+							uid.append(uid[2].pop(0))
+							uid[2] = uid[2][0]
+							uid = tuple(uid)
+							valid_uids.append(uid)
+		self.output_method(0,"[" + {True:"Success",False:"Missing"}[len(valid_uids) > 0] + "]")
+		if len(valid_uids) == 0:
+			self.output_method(0,"")
+			self.output_method(0,"Please create a default user account.")
+			password = (3,)
+			password_hide = (3,4)
+			user_requirements_display = {"comment":"Enter your name","hostname":"Name your computer","LOGIN":"Enter new username","password":"Enter password","password2":"Retype your password"}
+			user_requirements = {"comment":False,"hostname":False,"LOGIN":False,"password":False,"password2":False}
+			valid = False
+			while not valid:
+				requirement_iteration = 0
+				for user_requirement in user_requirements.keys():
+					user_requirement_input = user_requirements[user_requirement]
+					while user_requirement_input == False:
+						self.output_method(1,user_requirements_display[user_requirement]+": ")
+						user_requirement_input = self.input_method({True:2,False:0}[requirement_iteration in password_hide])
+						if len(user_requirement_input.strip()) == 0:
+							user_requirement_input = False
+						else:
+							if requirement_iteration not in password:
+								user_requirement_input = user_requirement_input.lstrip().rstrip()
+								user_requirement_input = user_requirement_input.strip()
+								user_requirement_input_build = []
+								allow_single_space = requirement_iteration != 2
+								for user_requirement_input_sub in user_requirement_input:
+									if user_requirement_input_sub.strip() == user_requirement_input_sub:
+										user_requirement_input_build.append(user_requirement_input_sub)
+									elif allow_single_space:
+										if len(user_requirement_input_build) > 0:
+											if user_requirement_input_build[-1] != " ":
+												user_requirement_input_build.append(user_requirement_input_sub)
+								user_requirement_input = "".join(user_requirement_input_build)
+								user_requirement_input = user_requirement_input.lstrip().rstrip()
+							user_requirements[user_requirement] = user_requirement_input
+					if requirement_iteration in password:
+						user_requirements[user_requirement] = self.passwd([],user_requirements[user_requirement],False)
+					requirement_iteration += 1
+				valid = self.passwd([],user_requirements[list(user_requirements.keys())[-1]],user_requirements[list(user_requirements.keys())[password[0]]])
+				if not valid:
+					self.output_method(0,"Sorry, passwords do not match.")
+					user_requirements[list(user_requirements.keys())[password_hide[0]]] = False
+					user_requirements[list(user_requirements.keys())[password_hide[1]]] = False
+			del user_requirements[list(user_requirements.keys())[-1]]
+			self.output_method(0,"")
+			self.output_method(1,"Creating user account...    ")
+			try:
+				if self.useradd([user_requirements["LOGIN"],"-c",user_requirements["comment"],"-g",str(system_usergroup_id["root"])]) == None:
+					with open(self.base_directory + "/etc/shadow","a+") as shadow_file:
+						shadow_file.write(user_requirements["LOGIN"] + ":" + user_requirements["password"] + "\n")
+					with open(self.base_directory + "/etc/hostname","w") as shadow_file:
+						shadow_file.write(user_requirements["hostname"])
+					self.output_method(0,"[Success]")
+					self.user = user_requirements["LOGIN"]
+					self.group = [int(system_usergroup_id["root"]),[]]
+					self.alias(["$USER","'" + user_requirements["LOGIN"] + "'","$LOGNAME","'" + user_requirements["LOGIN"] + "'"])
+				else:
+					self.output_method(0,"[Failed]")
+			except ProcessLookupError:
+				self.output_method(0,"[Failed]")
+		if self.user == None:
+			self.output_method(0,"")
+			self.login([])
 
 	def get_definition(self):
 		return self.definition_complete
 
+	def directory_restrict(self,to_dir=False):
+		if self.base_directory == False or self.stable == False:
+			return (to_dir,to_dir)
+		else:
+			path = to_dir.split(self.base_directory)
+			if len(path) > 1:
+				path = self.base_directory.join(path[1:])
+			else:
+				path = path[0]
+			path_valid = path != to_dir
+			if path_valid:
+				return (to_dir,path)
+			else:
+				return (self.base_directory,"/")
+
+	def dir_normpath(self,path):
+		path = self.directory_restrict(path)[0]
+		path = path.split("/")
+		structured_path = []
+		for directory in path:
+			if directory == "..":
+				if len(structured_path) > 0:
+					structured_path.pop()
+			elif directory != ".":
+				structured_path.append(directory)
+		if len(structured_path) == 0:
+			return "/"
+		if structured_path[0] == "":
+			if len(structured_path) == 1:
+				structured_path[0] = "."
+		return "/".join(structured_path)
+
+	def dir_abspath(self,path):
+		path = self.directory_restrict(os.path.abspath(path))
+		path = path[0]
+		return path
+
 	def set_input_method(self,inputting_method = False, mode = -1):
-		if inputting_method != False and mode != -1:
-			if mode == 0:
-				if callable(inputting_method):
-					self.input_method_reference[0] = [inputting_method, True]
-					return self.input_method_reference[0];
-				else:
-					return [ImportWarning("failed attempt to implement a non callable inputting method"),False]
-			elif mode == 1:
-				if callable(inputting_method):
-					self.input_method_reference[1] = [inputting_method, True]
-					return self.input_method_reference[1];
-				else:
-					return [ImportWarning("failed attempt to implement a non callable inputting method"),False]
+		if inputting_method != False and mode in range(len(self.input_method_reference)):
+			if callable(inputting_method):
+				self.input_method_reference[mode] = [inputting_method, True]
+				return self.input_method_reference[mode];
+			else:
+				return [ImportWarning("failed attempt to implement a non callable inputting method"),False]
 		else:
 			return [ImportWarning("failed to implement an input method from no prescribed source"),False]
 
@@ -72,6 +328,11 @@ class core(threading.Thread):
 					if not additions == False:
 						self.output_method(1,additions)
 					return self.input_method_reference[1][0]() or " "
+				else:
+					raise NotImplementedError("no input method defined")
+			elif mode == 2:
+				if self.input_method_reference[2][1]:
+					return self.input_method_reference[2][0]() or ""
 				else:
 					raise NotImplementedError("no input method defined")
 			else:
@@ -106,6 +367,165 @@ class core(threading.Thread):
 				raise NotImplementedError("no output method defined")
 		return output
 
+	def login(self,args=[]):
+		response = []
+		preserve_environment = False
+		pre_authed = False
+		username = False
+		for arg in args:
+			if arg.startswith("-"):
+				if arg == "-p":
+					preserve_environment = True
+				elif arg == "-f":
+					pre_authed = True
+				else:
+					raise ValueError(arg)
+			elif username == False:
+				username = arg
+			else:
+				raise ValueError(arg)
+		if pre_authed and username == False:
+			return ["login: no LOGIN was preauthenticated"]
+		while True:
+			user_login_values = {"username":False,"password":False}
+			user_login_display = {"username":self.get_hostname([]) + " login","password":"Password"}
+			for user_login_breif, user_login_value in user_login_values.items():
+				while user_login_value == False:
+					if username == False:
+						self.output_method(1,user_login_display[user_login_breif] + ": ")
+						user_login_value = self.input_method(0)
+					else:
+						user_login_value = username
+						username = False
+					user_login_value = user_login_value.lstrip().rstrip()
+					user_login_value = user_login_value.strip()
+					user_login_build = []
+					for user_login_sub in user_login_value:
+						if user_login_sub.strip() == user_login_sub:
+							user_login_build.append(user_login_sub)
+					user_login_value = "".join(user_login_build)
+					user_login_value = user_login_value.lstrip().rstrip()
+					if len(user_login_value) == 0:
+						user_login_value = False
+					else:
+						user_login_values[user_login_breif] = user_login_value
+			valid_uids = []
+			if os.path.exists(self.base_directory + "/etc/passwd"):
+				uids = self.concatenate(["/etc/passwd"])
+				for uid in uids:
+					uid = uid.split(":")
+					if len(uid) == 5:
+						uid.pop()
+						if uid[3].isdigit():
+							if uid[2].isdigit():
+								uid[2] = int(uid[2])
+								uid = [int(uid.pop(3)),str(uid.pop(0)),uid]
+								uid.append(uid[2].pop(0))
+								uid[2] = uid[2][0]
+								uid = tuple(uid)
+								valid_uids.append(uid)
+			uid_exists = -1
+			uid_generations = 0
+			while uid_exists < 0:
+				for uid in valid_uids:
+					if uid[1] == user_login_values["username"]:
+						uid_exists = uid
+						break
+				if uid_exists == -1:
+					uid_exists = 0
+				elif type(uid_exists) == tuple:
+					break
+			if uid_exists == 0:
+				user_login_values = {"username":False,"password":False}
+			else:
+				password_hash = False
+				if uid_exists[3] != "x":
+					password_hash = uid_exists[3]
+				else:
+					if os.path.exists(self.base_directory + "/etc/shadow"):
+						password_hash = self.concatenate(["/etc/shadow"])
+						for password in password_hash:
+							password = password.split(":")
+							if len(password) >= 2:
+								password_hash_temp = password.pop(-1)
+								password = ":".join(password)
+								if password == uid_exists[1]:
+									password_hash = password_hash_temp
+									break
+				if password_hash == False:
+					self.output(0,"Unable to locate password for '" + user_login_values["username"] + "'")
+					password_hash
+				else:
+					if self.passwd([],user_login_values["password"],password_hash):
+						self.alias(["$USER","'" + user_login_values["username"] + "'","$LOGNAME","'" + user_login_values["username"] + "'"])
+						self.user = user_login_values["username"]
+						self.group = [uid_exists[0],uid_exists[1:]]
+						if not preserve_environment:
+							current_directory = self.get_display_cwd()
+							self.change_directory(["/"])
+							if self.change_directory(["etc"]) == None:
+								directory_contents = self.ls(["-A","-p","--color","never"])
+								for file in directory_contents:
+									if file.endswith("/"):
+										continue
+									elif file.endswith(".defs"):
+										env_conf = file[0:-5]
+										self.env_vars[env_conf] = []
+										with open(file,"r") as file_contents:
+											file_contents = file_contents.readlines()
+											if len(file_contents) == 0:
+												invalid_conf_files.append(env_conf)
+												continue
+											for variable in file_contents:
+												if "=" in variable:
+													variable = variable.split("=")
+													if len(variable) > 2:
+														variable[1] = variable[1:].join("=")
+													elif len(variable) == 1:
+														variable[1] = ""
+													variable[1] = variable[1].rstrip()
+													iteration_position = 0
+													for variable_data in self.env_vars[env_conf]:
+														if variable_data[0] != variable[0]:
+															iteration_position += 1
+															continue
+														else:
+															del self.env_vars[env_conf][iteration_position]
+															break
+													del iteration_position
+													self.env_vars[env_conf].append(variable)
+													del variable
+												else:
+													del self.env_vars[env_conf]
+													invalid_conf_files.append(env_conf)
+													break
+							self.change_directory([current_directory])
+							self.change_directory(["/"])
+							self.get_env_vars()
+						self.output_method(0,"")
+						self.welcome()
+						return None
+			uid_exists = -1
+		return
+
+	def welcome(self,prepend=None):
+		if prepend != None:
+			if type(prepend) != list:
+				prepend = list(prepend)
+			for prepend_out in prepend:
+				if type(prepend_out) in [str,int]:
+					prepend_out = str(prepend_out)
+					self.output_method(0,str(prepend_out))
+		self.output_method(0,"Welcome to OS " + str(version.__version__))
+		self.output_method(0,"")
+
+	def logout(self,args=[]):
+		self.user = None
+		self.group = None
+		self.output_method(0,"")
+		raise SystemExit("logout")
+		return None
+
 	def set_proc(self,pid):
 		self.process_id = pid
 
@@ -116,14 +536,435 @@ class core(threading.Thread):
 		if directory == False:
 			return False
 		else:
+			if self.stable:
+				if directory.startswith("/"):
+					directory = self.base_directory + directory
+				else:
+					directory = self.get_cwd() + "/" + directory
+			else:
+				if directory == "/":
+					directory = self.rel_base_directory + "/"
+			directory = os.path.abspath(directory)
+			if self.stable:
+				directory = self.directory_restrict(directory)[0]
 			self.dir = directory
-			os.chdir(self.dir)
-			return self.dir;
+			if self.base_directory != False and self.stable:
+				os.chdir(directory)
+			else:
+				os.chdir(self.dir)
+			return self.dir
 
+	def get_env_vars(self,host=False,keyed=False):
+		if host == False:
+			return {True:{},False:[]}[keyed]
+		else:
+			if host in self.env_vars:
+				environments = self.env_vars[host]
+				environment_keyed = {}
+				if keyed:
+					for variable in environments:
+						environment_keyed[variable[0]]=variable[1]
+					environments = environment_keyed
+				return environments
+			else:
+				return {True:{},False:[]}[keyed]
+
+	def passwd(self,args=[],password=False,hashed_password=False):
+		if password != False or hashed_password != False:
+			if hashed_password == False:
+				salt = hashlib.sha256(os.urandom(60)).hexdigest().encode('ascii')
+				pwdhash = hashlib.pbkdf2_hmac('sha512', password.encode('utf-8'), 
+											salt, 100000)
+				pwdhash = binascii.hexlify(pwdhash)
+				return (salt + pwdhash).decode('ascii')
+			else:
+				salt = hashed_password[:64]
+				hashed_password = hashed_password[64:]
+				pwdhash = hashlib.pbkdf2_hmac('sha512', 
+											  password.encode('utf-8'), 
+											  salt.encode('ascii'), 
+											  100000)
+				pwdhash = binascii.hexlify(pwdhash).decode('ascii')
+				return pwdhash == hashed_password
+		else:
+			'''
+			Not implemented yet
+			'''
+			return False
+
+	def useradd(self,args=[]):
+		response = []
+		unique_id = True
+		non_unique = False
+		key = self.get_env_vars("login",True)
+		system = False
+		gid = False
+		groups = []
+		comment = False
+		user_name = False
+		password = False
+		if len(args) > 0:
+			get_next_parameter = [False,False]
+			possible_more = False
+			for arg in args:
+				if get_next_parameter[0] or possible_more != False:
+					get_next_parameter[0] = False
+					if possible_more != False:
+						get_next_parameter[1] = possible_more
+					if get_next_parameter[1] in ["-u","--uid"]:
+						if arg.isdigit():
+							arg = int(arg)
+							if arg > 0:
+								unique_id = arg
+						return ["useradd: invalid value of '" + arg + "' for " + get_next_parameter[1] + " parameter"] 
+					elif get_next_parameter[1] == "-c":
+						comment = arg
+						continue
+					elif get_next_parameter[1] == "-K":
+						if type(key) != dict:
+							key = {}
+						if len(get_next_parameter) != 3:
+							if not arg.startswith("-"):
+								get_next_parameter[0] = True
+								get_next_parameter.append(arg)
+								continue
+						else:
+							key[get_next_parameter[2]] = arg
+							del get_next_parameter[2]
+							continue
+					elif get_next_parameter[1] == "-g":
+						groups.insert(0,arg)
+						continue
+					elif get_next_parameter[1] == "-G":
+						if arg != ",":
+							continue
+						groups.extend(arg.split(","))
+						possible_more = {True:"-G",False:False}[len(arg.split(",")[-1]) == 0]
+						continue
+					elif get_next_parameter[1] == "-p":
+						if password != True:
+							return ["useradd: password has already been provided"]
+						password = arg
+					possible_more = False
+				if arg.startswith("-"):
+					if arg in ["-u","--uid"]:
+						unique_id = True
+						get_next_parameter = [True,arg]
+					elif arg in ["-o","--non-unique"]:
+						non_unique = False
+					elif arg in ["-K","--key"]:
+						key = True
+						get_next_parameter = [True,"-K"]
+					elif arg in ["-g","-G","--groups","--gid"]:
+						get_next_parameter = [True,"-"+{True:"g",False:"G"}[arg in ["-g","--gid"]]]
+					elif arg in ["-c","--comment"]:
+						comment = True
+						get_next_parameter = [True,"-c"]
+					elif arg in ["-p","--password"]:
+						password = True
+						get_next_parameter = [True,"-p"]
+					elif arg in ["-r","--system"]:
+						key = self.get_env_vars("login",True)
+						try:
+							key["UID_MIN"] = key["SYS_UID_MIN"]
+							key["UID_MAX"] = key["SYS_UID_MAX"]
+						except:
+							pass
+						system = True
+					else:
+						raise ValueError(arg)
+				elif user_name == False:
+					user_name = arg
+				else:
+					raise ValueError(arg)
+			if len(groups) == 0:
+				return ["useradd: incomplete argument reference for -" + {True:"g",False:"-gid"}["-g" in args]]
+			elif unique_id != True and non_unique:
+				return ["useradd: incomplete argument reference for -" + {True:"u",False:"-uid"}["-u" in args]]
+			elif comment == True:
+				return ["useradd: incomplete argument reference for -" + {True:"c",False:"-comment"}["-c" in args]]
+			elif password == True:
+				return ["useradd: incomplete argument reference for -" + {True:"p",False:"-password"}["-p" in args]]
+			elif user_name == False:
+				return ["useradd: expected a LOGIN to be provided"]
+
+			for required in ["UID_MIN","UID_MAX","CREATE_HOME"]:
+				if required not in key.keys():
+					raise ReferenceError(required)
+				else:
+					if key[required].isdigit():
+						key[required] = int(key[required])
+						if key[required] < 0:
+							raise ReferenceError(required)
+			if unique_id not in [True,False]:
+				if non_unique:
+					if unique_id > key["UID_MAX"] or unique_id < key["UID_MIN"]:
+						return ["useradd: '" + unique_id + "' is out of the bounds of " + str(key["UID_MIN"]) + " and " + str(key["UID_MAX"])]
+				else:
+					return ["useradd: required permission to add a group with a non-unique UID, try '-o'"]
+			if not non_unique:
+				try:
+					unique_id = random.randint(key["UID_MIN"],key["UID_MAX"]+1)
+				except:
+					unique_id = key["UID_MIN"]
+			if not os.path.exists(self.base_directory + "/etc/group"):
+				raise ProcessLookupError("/etc/group")
+			else:
+				group_data = self.concatenate(["/etc/group"])
+			groups_id_data = {}
+			for group_data_ids in group_data:
+				group_data_ids = group_data_ids.split(":")
+				group_data_ids.pop()
+				if len(group_data_ids) >= 3:
+					group_relative_data = [":".join(group_data_ids[0:-2]),group_data_ids[-2],group_data_ids[-1]]
+					if group_relative_data[2].isdigit():
+						group_relative_data[2] = int(group_relative_data[2])
+						if not group_relative_data[2] in groups_id_data.keys():
+							groups_id_data[group_relative_data[2]] = [group_relative_data[0],group_relative_data[1]]
+			group_limit = []
+			for group in groups:
+				match = False
+				for group_id, group_data in groups_id_data.items():
+					group = str(group)
+					if group.isdigit():
+						group = int(group)
+						if group == group_id:
+							match = True
+					elif group_data[0] == group_name:
+						match = True
+					if not match:
+						group_limit.append([group_id,group_data[1],group_data[0]])
+				if not match:
+					return ["useradd: the provided GID '" + group + "' does not exist"]
+			valid_uids = []
+			if os.path.exists(self.base_directory + "/etc/passwd"):
+				uids = self.concatenate(["/etc/passwd"])
+				for uid in uids:
+					uid = uid.split(":")
+					if len(uid) == 5:
+						uid.pop()
+						if uid[3].isdigit():
+							if uid[2].isdigit():
+								uid[2] = int(uid[2])
+								uid = [int(uid.pop(3)),str(uid.pop(0)),uid]
+								uid.append(uid[2].pop(0))
+								uid[2] = uid[2][0]
+								uid = tuple(uid)
+								valid_uids.append(uid)
+			uid_exists = -1
+			uid_generations = 0
+			while uid_exists != 0:
+				for uid in valid_uids:
+					if uid[0] == unique_id or uid[1] == user_name:
+						uid_exists = 1
+						if uid[1] == user_name:
+							return ["useradd: the provided LOGIN is already associated to another user"]
+					for x in range(len(group_limit)):
+						if group_limit[x][1] == "x":
+							continue
+						if uid[2] == group_limit[x][0]:
+							group_limit[x][1] -= 1
+				if uid_exists < 0:
+					uid_exists = 0
+				else:
+					if non_unique:
+						return ["useradd: the provided UID is already associated to another user"]
+					else:
+						try:
+							unique_id = random.randint(key["UID_MIN"],key["UID_MAX"]+1)
+						except:
+							uid_generations += 1
+							if uid_generations == 2:
+								return ["useradd: the only possible UID from provided boundaries already exists - " + key["UID_MIN"]]
+							unique_id = key["UID_MIN"]
+			for group_restrict in group_limit:
+				if group_restrict[1] == "x":
+					pass
+				elif group_restrict[1] <= 0:
+					return ["useradd: the user group '" + group_restrict + "' cannot accommodate no more users"]
+			uid_build = [user_name,{True:password,False:"x"}[password != False],",".join(groups),str(unique_id),{True:"",False:comment}[comment == False]]
+			with open(self.base_directory + "/etc/passwd","a+") as passwd_file:
+				passwd_file.write(":".join(uid_build)+"\n")
+			return None
+		return ["useradd: expected a LOGIN to be provided"]
+
+	def id(self,args=[]):
+		response = []
+		active_group_id = False
+		all_group_ids = False
+		user = False
+		for arg in args:
+			if arg.startswith("-"):
+				if arg in ["-g","--group"]:
+					active_group_id = True
+					all_group_ids = False
+				elif arg in ["-G","--groups"]:
+					all_group_ids = True
+					active_group_id = False
+				elif arg in ["-u","--user"]:
+					user = True
+		if user and (active_group_id or all_group_ids):
+			return ["id: cannot print 'only' of more than one choice"]
+		ids = {}
+		if user:
+			'''
+			Not Implemented Yet
+			'''
+			return []
+		if os.path.exists(self.base_directory + "/etc/group"):
+			gids = self.concatenate(["/etc/group"])
+			for gid in gids:
+				gid = gid.split(":")
+				gid.pop()
+				if len(gid) == 3:
+					gid = [":".join(gid[0:-2]),gid[-2],gid[-1]]
+					if gid[2].isdigit():
+						gid[2] = int(gid[2])
+						ids[gid[2]]=[gid[0],True]
+		if active_group_id:
+			'''
+			Not Implemented Yet
+			'''
+			None
+		for gid, name in ids.items():
+			response.append({True:"g",False:"u"}[name[1]] + "id="+str(gid)+"(" + str(name[0]) + ")")
+		return response
+
+	def groupadd(self,args=[]):
+		response = []
+		unique_id = True
+		non_unique = False
+		key = self.get_env_vars("groupadd",True)
+		system = False
+		group_name = False
+		if len(args) > 0:
+			get_next_parameter = [False,False]
+			for arg in args:
+				if get_next_parameter[0]:
+					get_next_parameter[0] = False
+					if get_next_parameter[1] in ["-g","--gid"]:
+						if arg.isdigit():
+							arg = int(arg)
+							if arg > 0:
+								unique_id = arg
+						return ["groupadd: invalid value of '" + arg + "' for " + get_next_parameter[1] + " parameter"] 
+					elif get_next_parameter[1] == "-K":
+						if type(key) != dict:
+							key = {}
+						if len(get_next_parameter) != 3:
+							if not arg.startswith("-"):
+								get_next_parameter[0] = True
+								get_next_parameter.append(arg)
+								continue
+						else:
+							key[get_next_parameter[2]] = arg
+							del get_next_parameter[2]
+							continue
+				if arg.startswith("-"):
+					if arg in ["-g","--gid"]:
+						unique_id = True
+						get_next_parameter = [True,arg]
+					elif arg in ["-o","--non-unique"]:
+						non_unique = False
+					elif arg in ["-K","--key"]:
+						key = True
+						get_next_parameter = [True,"-K"]
+					elif arg in ["-r","--system"]:
+						key = self.get_env_vars("login",True)
+						try:
+							key["GID_MIN"] = key["SYS_GID_MIN"]
+							key["GID_MAX"] = key["SYS_GID_MAX"]
+						except:
+							pass
+						system = True
+					else:
+						raise ValueError(arg)
+				elif group_name == False:
+					group_name = arg
+				else:
+					raise ValueError(arg)
+			for required in ["GID_MIN","GID_MAX","MAX_MEMBERS_PER_GROUP"]:
+				if required not in key.keys():
+					raise ReferenceError(required)
+				else:
+					if key[required].isdigit():
+						key[required] = int(key[required])
+						if key[required] < 0:
+							raise ReferenceError(required)
+			if len(group_name.split()) > 1:
+				return ["groupadd: group name must not contain any whitespace"]
+			current_directory = self.get_cwd()
+			self.change_directory(["/"])
+			if not os.path.exists(self.base_directory + "/etc/group"):
+				group_data = []
+			else:
+				group_data = self.concatenate(["/etc/group"])
+			groups = {}
+			for group_data_ids in group_data:
+				group_data_ids = group_data_ids.split(":")
+				group_data_ids.pop()
+				if len(group_data_ids) >= 3:
+					group_relative_data = [":".join(group_data_ids[0:-2]),group_data_ids[-2],group_data_ids[-1]]
+					if group_relative_data[2].isdigit():
+						group_relative_data[2] = int(group_relative_data[2])
+						if not group_relative_data[2] in groups.keys():
+							groups[group_relative_data[2]] = [group_relative_data[0],group_relative_data[1]]
+			if unique_id not in [True,False]:
+				if non_unique:
+					if unique_id > key["GID_MAX"] or unique_id < key["GID_MIN"]:
+						return ["groupadd: '" + unique_id + "' is out of the bounds of " + str(key["GID_MIN"]) + " and " + str(key["GID_MAX"])]
+				else:
+					return ["groupadd: required permission to add a group with a non-unique GID, try '-o'"]
+				if unique_id in groups.keys:
+					if force:
+						gid_generations = 0
+						while unique_id in [True,False] or unique_id in list(groups.keys()):
+							try:
+								unique_id = random.randint(key["GID_MIN"],key["GID_MAX"]+1)
+							except:
+								gid_generations += 1
+								if gid_generations == 2:
+									return ["groupadd: the only possible GID from provided boundaries already exists - " + key["GID_MIN"]]
+								unique_id = key["GID_MIN"]
+					else:
+						return ["groupadd: the provided GID is already associated to another user group"]
+			else:
+				gid_generations = 0
+				while unique_id in [True,False] or unique_id in list(groups.keys()):
+					try:
+						unique_id = random.randint(key["GID_MIN"],key["GID_MAX"]+1)
+					except:
+						gid_generations += 1
+						if gid_generations == 2:
+							return ["groupadd: the only possible GID from provided boundaries already exists - " + key["GID_MIN"]]
+						unique_id = key["GID_MIN"]
+			base_group_name = group_name
+			group_iteration = 1
+			while group_name in groups.values():
+				group_iteration += 1
+				group_name = base_group_name + str(group_iteration)
+			groups[unique_id] = [group_name,{True:"x",False:key["MAX_MEMBERS_PER_GROUP"]}[key["MAX_MEMBERS_PER_GROUP"] == 0]]
+			group_string = []
+			for group_id in groups.keys():
+				group_string.append(groups[group_id][0] + ":"+ groups[group_id][1] + ":" + str(group_id) + ":")
+			with open(self.base_directory+"/etc/group","w") as grouping:
+				grouping.write("\n".join(group_string))
+			return unique_id
+		else:
+			return ["groupadd: expected a group name or id to be provided"]
+	
 	def get_cwd(self,args=[]):
+		self.dir
 		if self.dir == "/":
 			return "/"
 		return self.dir
+
+	def get_display_cwd(self,args=[]):
+		display_dir = self.directory_restrict(self.dir)
+		display_dir=display_dir[1]
+		if display_dir == "/" or len(display_dir) == 0:
+			return "/"
+		return display_dir
 
 	def ls(self,args=[]):
 		files = [".",".."]
@@ -133,12 +974,17 @@ class core(threading.Thread):
 		comma = False
 		qoutation = False
 		qouting_literal = False
+		color = False
 		if len(args) >= 1:
 			for arg in args:
-				if arg in ["-a","--all"]:
+				if color == None:
+					color = arg
+				elif arg in ["-a","--all"]:
 					show_all = True
 				elif arg in ["-A","--almost-all"]:
 					files = []
+				elif arg == "--color":
+					color = None
 				elif arg in ["-r","--reverse"]:
 					reverse = True
 				elif arg == "-p":
@@ -151,6 +997,10 @@ class core(threading.Thread):
 					qouting_literal = True
 				else:
 					raise ValueError(arg)
+		if color == None:
+			color = True
+		if color not in [True,False,"always","never","auto"]:
+			raise ValueError("--color="+str(color))
 		files = files + os.listdir(self.get_cwd())
 		list_files = []
 		for x in range(len(files)):
@@ -160,8 +1010,10 @@ class core(threading.Thread):
 			if not qoutation and not qouting_literal:
 				if len(files[x].split(" ")) > 1:
 					files[x] = "'" + files[x] + "'"
-			if show_dirs and os.path.isdir(os.path.abspath(self.get_cwd()+"/"+files[x])):
-				files[x] = files[x] + "/"
+			if os.path.isdir(self.dir_abspath(self.get_cwd()+"/"+files[x])):
+				files[x] = {True:"\033[1;34m",False:""}[color in [True,"always","auto"]] + files[x] + {True:"\033[0m",False:""}[color in [True,"always","auto"]]
+				if show_dirs:
+					files[x] = files[x] + "/"
 			if qoutation:
 				files[x] = "\"" + files[x] + "\""
 			list_files.append(files[x])
@@ -173,44 +1025,23 @@ class core(threading.Thread):
 
 	def get_hostname(self,args=[]):
 		default = "computer"
-		current_directory = self.get_cwd()
-		self.change_directory([self.base_directory])
-		if not "device.json" in self.ls(["-A"]):
-			self.change_directory([current_directory])
-			return default
-		try:
-			with open("device.json","r") as device_details:
-				self.change_directory([current_directory])
-				try:
-					device_details = json.loads(device_details.read())
-					return device_details["name"]
-				except:
-					return default
-		except:
-			self.change_directory([current_directory])
-			return default
-		self.change_directory([current_directory])	
-		return default
+		current_directory = self.get_display_cwd()
+		if self.stable:
+			self.change_directory(["/etc"])
+		else:
+			self.change_directory([self.base_directory + "/etc"])
+		if "hostname" in self.ls(["-A","--color","never"]):
+			hostname = self.concatenate(["hostname"])
+			if len(hostname) == 1:
+				if hostname[0].strip() != "":
+					default = hostname[0]
+		self.change_directory([current_directory])
+		return default.replace(" ","-")
 
 	def who_am_i(self,args=[]):
 		default = "user"
-		current_directory = self.get_cwd()
-		self.change_directory([self.base_directory])
-		if not "device.json" in self.ls(["-A"]):
-			self.change_directory([current_directory])
-			return default
-		try:
-			with open("device.json","r") as device_details:
-				self.change_directory([current_directory])
-				try:
-					device_details = json.loads(device_details.read())
-					return device_details["user"]
-				except:
-					return default
-		except:
-			self.change_directory([current_directory])
-			return default
-		self.change_directory([current_directory])	
+		if self.user != None:
+			return self.user
 		return default
 
 	def uname(self,args=[]):
@@ -233,6 +1064,8 @@ class core(threading.Thread):
 				nodename = True
 				kernel_release = True
 				kernel_version = True
+			else:
+				raise ValueError(arg)
 		if not kernel_version and not kernel_release and not nodename and not kernel_name:
 			kernel_name = True
 		if kernel_name:
@@ -240,7 +1073,7 @@ class core(threading.Thread):
 		if nodename:
 			response.append(self.get_hostname([]))
 		if kernel_version:
-			response.append(str(version.__version__))
+			response.append("#" + str(version.__version__) + "-" + str(version.__build__) + " " + datetime.datetime.fromtimestamp(version.__time__).strftime("%a %b %y %H:%M:%S %Z %Y").replace("  "," "))
 		if kernel_release:
 			if kernel_version:
 				delimiters = ("(",")")
@@ -250,9 +1083,20 @@ class core(threading.Thread):
 		return response
 
 	def move(self,args=[]):
+		files = []
 		for arg in args:
-			if arg in ["-r","-R","--recursive"]:
-				raise ValueError(arg)
+			if arg.startswith("-"):
+				if arg not in ["-r","-R","--recursive","-v","--verbose"]:
+					raise ValueError(arg)
+			else:
+				files.append(arg)
+		if len(files) != 2:
+			if len(files) == 0:
+				return ["mv: missing file operand"]
+			if len(files) == 1:
+				return ["mv: missing destination file operand after '" + files[0] + "'"]
+			elif len(files) > 2:
+				return ["mv: too many arguments"]
 		return self.copy(args,True)
 
 	def copy(self,args=[],remove=False):
@@ -260,7 +1104,7 @@ class core(threading.Thread):
 		recursive = False
 		copy_loc = []
 		prepend_output = ""
-		joint_command_type = "cp"
+		joint_command_type = {True:"cp",False:"mv"}[not remove]
 		if remove:
 			prepend_output = "renamed "
 			joint_command_type = "mv"
@@ -282,137 +1126,131 @@ class core(threading.Thread):
 			return [joint_command_type + ": missing operand"]
 		elif len(copy_loc) < 2:
 			return [joint_command_type + ": missing destination file operand after " + copy_loc[0]]
-		current_base_dir = self.get_cwd()
-		destination = copy_loc.pop()
-		relative_destination = destination
-		if not destination.startswith("/"):
-			destination = os.path.abspath(current_base_dir + "/" + destination)
-		for copy_default_loc in copy_loc:
-			copy_default_loc_raw = copy_default_loc
-			if copy_default_loc.startswith("/"):
-				copy_default_loc = os.path.abspath(copy_default_loc)
-			else:
-				copy_default_loc = os.path.abspath(current_base_dir + "/" + copy_default_loc)
-			copy_default_loc_absolute_base_delimiter = copy_default_loc.split("/")
-			copy_default_loc_absolute_full_path = copy_default_loc_absolute_base_delimiter
-			copy_default_loc_final_base_delimiter = copy_default_loc_absolute_base_delimiter[-1]
-			copy_default_loc_absolute_base_delimiter = copy_default_loc_absolute_base_delimiter[:-1]
-			copy_default_is_dir = True
-			if copy_default_loc != "/":
-				if self.change_directory([copy_default_loc]) == None:
-					if recursive:
-						self.change_directory([".."])
+		else:
+			to_copy_tree = []
+			current_active_directory = self.get_display_cwd()
+			to_copy_base = copy_loc.pop(0)
+			to_copy = [to_copy_base]
+			to_copy_default = to_copy
+			to_copy_iteration = 0
+			file_count = 0
+			while to_copy_iteration < len(to_copy):
+				copy = to_copy[to_copy_iteration]
+				copy_raw = copy
+				copy = self.directory_restrict(self.dir_abspath(self.base_directory + {True:"",False:self.get_display_cwd()+"/"}[copy.startswith("/")] + copy).replace("//","/"))[1]
+				to_copy_iteration += 1
+				self.change_directory([current_active_directory])
+				if not copy.startswith("/"):
+					copy = current_active_directory + {True:"",False:"/"}[current_active_directory.endswith("/")] + copy
+				if copy.endswith("*"):
+					if copy_raw == to_copy_base:
+						to_copy_base = copy.rstrip("*")
+					copy = copy.rstrip("*")
+					if self.change_directory([copy]) == None:
+						if to_copy[to_copy_iteration-1] in to_copy_default:
+							for x in range(len(to_copy_default)):
+								if to_copy_default[x] == to_copy[to_copy_iteration-1]:
+									to_copy_default[x] = copy
+									break
+						to_copy_tree_sub_rel = self.ls(["-A","--color","never"])
+						for x in range(len(to_copy_tree_sub_rel)):
+							if copy+to_copy_tree_sub_rel[x] not in to_copy:
+								to_copy.insert(to_copy_iteration+x,copy+to_copy_tree_sub_rel[x])
+						to_copy_iteration -=1
+						del to_copy[to_copy_iteration]
+						continue
 					else:
-						response.append(joint_command_type + ": -r not specified so the directory '" + copy_default_loc + "' was omitted")
+						response.append(joint_command_type + ": cannot copy '" + to_copy[to_copy_iteration-1] + "' as no file or directory exists")
+						to_copy_iteration -= 1
+						del to_copy[to_copy_iteration]
 						continue
-				elif self.change_directory(["/" + "/".join(copy_default_loc_absolute_base_delimiter)]) == None:
-					copy_default_is_dir = False
-					directory_contents = self.ls(["-a","-n"])
-					if copy_default_loc_final_base_delimiter not in directory_contents:
-						response.append(joint_command_type + ": cannot stat '" + copy_default_loc_raw + "' as no file or directory exists")
+				to_copy_tree_sub = [copy,self.change_directory([copy]) == None]
+				if not to_copy_tree_sub[1]:
+					file_count += 1
+				if to_copy_tree_sub[1]:
+					if not recursive:
+						response.append(joint_command_type + ": cannot copy '" + to_copy[to_copy_iteration-1] + "' as it is a directory")
+						to_copy_iteration -= 1
+						del to_copy[to_copy_iteration]
 						continue
-					elif not os.access(self.get_cwd() + "/" + copy_default_loc_final_base_delimiter, os.R_OK):
-						response.append(joint_command_type + ": cannot stat '" + copy_default_loc_raw + "' as permission is denied")
-						continue
-				else:
-					response.append(joint_command_type + ": cannot stat '" + copy_default_loc_raw + "' as no file or directory exists")
-					continue
-			if copy_default_is_dir:
-				destination_dir_directories = destination.split("/")
-				directory_iteration = 0
-				directory_child = True
-				for directory in destination_dir_directories:
-					if directory_iteration < len(copy_default_loc_absolute_full_path):
-						if copy_default_loc_absolute_full_path[directory_iteration] == directory:
-							if directory_child:
-								directory_child = True
-						else:
-							directory_child = False
-					directory_iteration += 1
-				if directory_child:
-					response.append(joint_command_type + ": cannot copy a directory '" + copy_default_loc_raw + "' into itself '" + destination + "'")
-					continue
-				else:
-					files = [ 
-						os.path.join(parent, name)
-						for (parent, subdirs, files) in os.walk(copy_default_loc)
+					to_copy_tree_sub_rel = [ 
+						self.directory_restrict(os.path.join(parent, name))[1]
+						for (parent, subdirs, files) in os.walk(self.base_directory+copy)
 						for name in files + subdirs
 					]
-					files_directory_structure = []
-					files_static_locations = []
-					for file in files:
-						if self.change_directory([file]) == None:
-							files_directory_structure.append(file)
-						else:
-							files_static_locations.append(file)
-					relative_delivery_destination = relative_destination
-					self.change_directory([current_base_dir])
-					if self.change_directory([destination]) != None:
-						self.create_directory([destination,"-p"])
-						if self.change_directory([destination]) != None:
-							response.append(joint_command_type + ": unable to create the directory '" + relative_destination + "' to copy the contents of '" + copy_default_loc_raw + "'")
-							continue
+					if to_copy_tree_sub_rel != [] and not recursive:
+						response.append(joint_command_type + ": cannot copy '" + to_copy[to_copy_iteration-1] + "' as it is a directory")
+						to_copy_iteration -= 1
+						del to_copy[to_copy_iteration]
+						continue
+					if to_copy[to_copy_iteration-1] in to_copy_default:
+						for x in range(len(to_copy_default)):
+							if to_copy_default[x] == to_copy[to_copy_iteration-1]:
+								to_copy_default[x] = copy
+								break
+					for x in range(len(to_copy_tree_sub_rel)):
+						if to_copy_tree_sub_rel[x] not in to_copy:
+							to_copy.insert(to_copy_iteration+x,to_copy_tree_sub_rel[x])
+				to_copy_tree.append(to_copy_tree_sub + [("/"+"/".join(to_copy_tree_sub[0].split("/")[0:-1])).replace("//","/")])
+			self.change_directory([current_active_directory])
+			if len(to_copy_tree) == 0:
+				return response
+			to_copy_default = [{True:"/",False:to_copy_default_loc.rstrip("/")}[to_copy_default_loc.rstrip("/") == "" and self.change_directory([current_active_directory])==None] for to_copy_default_loc in to_copy_default if self.change_directory([to_copy_default_loc]) == None]
+			self.change_directory([current_active_directory])
+			to_copy_tree = sorted(to_copy_tree,key=lambda x: Path(x[0]))
+			base_copy = None
+			copy_directories = []
+			to_copy_tree = [x for i, x in enumerate(to_copy_tree) if i == to_copy_tree.index(x)]
+			to_copy_base = self.directory_restrict(self.dir_abspath(self.base_directory + {True:"",False:self.get_display_cwd()+"/"}[to_copy_base.startswith("/")] + to_copy_base).replace("//","/"))[1]
+			for send_to in copy_loc:
+				send_to_raw = send_to
+				send_to = os.path.abspath({True:"",False:self.get_display_cwd()+"/"}[send_to.startswith("/")] + send_to)
+				if file_count == 1 and file_count == len(to_copy):
+					to_copy = to_copy[0]
+					to_copy_raw = to_copy
+					to_copy = os.path.abspath({True:"",False:self.get_display_cwd()+"/"}[to_copy.startswith("/")] + to_copy)
+					if self.link([to_copy,send_to]) == None:
+						if remove:
+							if self.unlink([to_copy]) != None:
+								response.append("mv: unable to remove original file of '" + to_copy + "'")
+						if verbose:
+							response.append("'" + to_copy_raw + "' -> '" + send_to_raw + "'")
 					else:
-						delivery_destination = destination + "/" + copy_default_loc_final_base_delimiter
-						relative_delivery_destination = relative_destination + "/" + copy_default_loc_final_base_delimiter
-						if self.change_directory([destination]) != None:
-							self.create_directory([destination,"-p"])
-							if self.change_directory([destination]) != None:
-								response.append(joint_command_type + ": unable to create the directory '" + relative_destination + "' to copy the contents of '" + copy_default_loc_raw + "' into")
-								continue
-					file_relational_tree = {}
-					for file in files_static_locations:
-						file = [file[len("/".join(copy_default_loc_absolute_full_path)) + 1:].split("/")]
-						file.append(file[0].pop())
-						file[0] = "/".join(file[0])
-						if len(file[0]) == 0:
-							file[0] = "."
-						if not file[0] in list(file_relational_tree.keys()):
-							file_relational_tree[file[0]] = []
-						file_relational_tree[file[0]].append(file[1])
-					del files_static_locations
-					files_directory_structure.insert(0,".")
-					for directory in files_directory_structure:
-						self.change_directory([destination])
-						if directory == ".":
-							directory = ""
-							if "." in list(file_relational_tree.keys()):
-								for file in file_relational_tree["."]:
-									if not os.path.isfile(self.get_cwd() + "/" + file) or remove:
-										self.concatenate(["/".join(copy_default_loc_absolute_full_path)+"/"+file,">",self.get_cwd()+"/"+file])
-										if verbose:
-											response.append(prepend_output+"'" + "/".join(copy_default_loc_absolute_full_path)[len("/".join(copy_default_loc_absolute_full_path)) - len(copy_default_loc_final_base_delimiter):] + "/" + file + "' -> '" + relative_delivery_destination + "/" + file + "'")
-										if remove:
-											os.remove("/".join(copy_default_loc_absolute_full_path)+"/"+file)
-									elif verbose:
-										response.append("'" + "/".join(copy_default_loc_absolute_full_path)[len("/".join(copy_default_loc_absolute_full_path)) - len(copy_default_loc_final_base_delimiter):] + "/" + file + "' -> IGNORED")
-							continue
-						self.create_directory([directory[len("/".join(copy_default_loc_absolute_full_path)) + 1:],"-p"])
-						if self.change_directory([directory[len("/".join(copy_default_loc_absolute_full_path)) + 1:]]) != None:
-							response.append(joint_command_type + ": unable to copy the contents of the directory '" + directory[len("/".join(copy_default_loc_absolute_full_path)) + 1:] + "'")
-							continue
-						else:
+						response.append("'" + to_copy_raw + "' -> FAILED")
+				else:
+					base_change = len(to_copy_base)
+					to_copy = sorted(to_copy,key=lambda x: os.path.splitext(x))
+					send_to = send_to.replace("//","/")
+					send_to_base = self.create_directory([send_to,"-p"])
+					send_to_base = send_to_base in [[],["mkdir: cannot create directory '" + send_to.rstrip("/") + "' as directory exists"]]
+					for copy in to_copy:
+						copy_abs_raw = copy
+						copy = "/".join([send_to,copy[base_change:]]).replace("//","/")
+						if self.change_directory([copy_abs_raw]) == None:
+							if remove:
+								copy_directories.append(copy_abs_raw)
+							suc = self.create_directory([copy])
+							if len(suc) == 0 or (copy.rstrip("/") == send_to.rstrip("/") and send_to_base):
+								if verbose:
+									response.append("'" + copy_abs_raw + "' -> '" + copy + "'")
+							elif suc == ["mkdir: cannot create directory '" + copy.rstrip("/") + "' as directory exists"]:
+								if verbose:
+									response.append("'" + copy_abs_raw + "' -> IGNORED")
+							else:
+								response.append("'" + copy_abs_raw + "' -> FAILED")
+						elif self.link([copy_abs_raw,copy]) == None:
+							if remove:
+								if self.unlink([copy_abs_raw]) != None:
+									response.append("mv: unable to remove original file of '" + copy_abs_raw + "'")
 							if verbose:
-								response.append("'" + directory[len("/".join(copy_default_loc_absolute_full_path)) - len(copy_default_loc_final_base_delimiter):] + "' -> '" + relative_delivery_destination + "/" + directory[len("/".join(copy_default_loc_absolute_full_path)) + 1:] + "'")
-							for sub_directory, files in file_relational_tree.items():
-								if sub_directory == directory[len("/".join(copy_default_loc_absolute_full_path)) + 1:]:
-									for file in files:
-										if not os.path.isfile(self.get_cwd() + "/" + file) or remove:
-											self.concatenate([directory+"/"+file,">",self.get_cwd() + "/" + file])
-											if verbose:
-												response.append(prepend_output+"'" + directory[len("/".join(copy_default_loc_absolute_full_path)) - len(copy_default_loc_final_base_delimiter):] + "/" + file + "' -> '" + relative_delivery_destination + "/" + directory[len("/".join(copy_default_loc_absolute_full_path)) + 1:] + "/" + file + "'")
-											if remove:
-												os.remove(directory+"/"+file,"rb")
-										elif verbose:
-											response.append("'" + directory[len("/".join(copy_default_loc_absolute_full_path)) - len(copy_default_loc_final_base_delimiter):] + "/" + file + "' -> IGNORED")
-			elif not os.path.isfile(destination) or remove:
-				self.concatenate(["/".join(copy_default_loc_absolute_full_path),">",destination])
-				if verbose:
-					response.append(prepend_output+"'" + copy_default_loc_raw + "' -> '" + relative_destination + "'")
-				if remove:
-					os.remove("/".join(copy_default_loc_absolute_full_path))
-		self.change_directory([current_base_dir])
-		return response
+								response.append("'" + copy_abs_raw + "' -> '" + copy + "'")
+						else:
+							response.append("'" + copy_abs_raw + "' -> FAILED")
+			copy_directories = sorted(copy_directories,key=lambda x: os.path.splitext(x),reverse=True)
+			for directory in copy_directories:
+				self.remove_directory([directory])
+			self.change_directory([current_active_directory])
+			return response
 
 	def concatenate(self,args=[]):
 		cat_values = []	
@@ -463,9 +1301,9 @@ class core(threading.Thread):
 		else:
 			for file in cat_values:
 				file_relative = file
-				if not file.startswith("/"):
-					file = self.get_cwd() + "/" + file
-				file = os.path.abspath(file)
+				if file.startswith("/"):
+					file = self.base_directory + file
+				#file = self.dir_abspath(file)
 				if not os.path.isfile(file):
 					output_error_stream.append("cat: unable to use file '" + file_relative + "' for input stream as it does not exists")
 				else:
@@ -507,6 +1345,7 @@ class core(threading.Thread):
 			joint_command_type = "tail"
 		for arg in args:
 			if get_next_parameter[0]:
+				get_next_parameter[0] = False
 				if get_next_parameter[1] == "-n":
 					if arg.isdigit():
 						arg = int(arg)
@@ -526,15 +1365,17 @@ class core(threading.Thread):
 		for file in files:
 			file_raw_location = file
 			if not file.startswith("/"):
-				file = self.get_cwd() + "/" + file
-			file = os.path.abspath(file)
+				file = os.path.abspath(self.get_display_cwd() + "/" + file)
+				file_raw_location = file
+				file = self.base_directory + file
+			file = self.dir_abspath(file)
 			if not os.path.isfile(file):
 				if os.path.isdir(file):
 					response.append(joint_command_type + ": unable to read '" + file_raw_location + "' as it is a directory")
 				else:
 					response.append(joint_command_type + ": unable to read '" + file_raw_location + "' as no file or directory exists")
 			else:
-				file_contents = self.concatenate([file])
+				file_contents = self.concatenate([file_raw_location])
 				if len(files) > 1:
 					if file_iteration >= 1:
 						response.append("")
@@ -547,23 +1388,29 @@ class core(threading.Thread):
 		return response
 
 	def change_directory(self, args=[]):
-		if len(args) > 0:
-			if len(args) == 1 and args[0] == "/":
-				directory = "/"
-			else:
-				current_directory = self.get_cwd()
-				if args[0].startswith("/"):
-					directory = os.path.normpath(args[0])
-					if directory != args[0]:
-						return "cd: " + args[0] + "is not a valid directory path"
-				else:
-					if current_directory != "/":
-						current_directory = current_directory + "/"
-					directory = os.path.normpath(current_directory + args[0])
-			if os.path.isdir(directory):
-				self.set_cwd(directory)
-			else:
-				return "cd: " + args[0] + " is not a directory"
+		if len(args) > 1:
+			return "cd: too many arguments"
+		elif len(args) == 0:
+			return
+		args = args[0]
+		if args.startswith("/"):
+			directory = os.path.abspath(args)
+		else:
+			current_directory = self.get_display_cwd()
+			if current_directory != "/":
+				current_directory = current_directory + "/"
+			directory = os.path.abspath(current_directory + args)
+		if args.startswith("/"):
+			directory = self.base_directory + args
+		else:
+			directory = os.path.normpath(self.get_cwd() + "/" + args)
+		directory = self.directory_restrict(directory)[0]
+		if not self.stable:
+			directory = args
+		if os.path.isdir(directory):
+			self.set_cwd(args)
+		else:
+			return "cd: " + args + " is not a directory"
 
 	def create_directory(self, args=[]):
 		verbose = False
@@ -582,105 +1429,72 @@ class core(threading.Thread):
 						raise ValueError(arg)
 		else:
 			return ["mkdir: missing operand"]
-		current_base_dir = self.get_cwd().split("/")[1:]
+		current_base_dir = self.get_display_cwd().split("/")
 		response = []
 		if len(dir_listings) == 0:
 			return ["mkdir: missing operand"]
 		for dir_new in dir_listings:
+			self.change_directory(["/".join(current_base_dir)])
 			dir_new_default_string = dir_new
-			if dir_new_default_string[0] == "/":
-				dir_new_default_string = dir_new_default_string.split("/")[1:]
-			else:
-				dir_new_default_string = os.path.abspath("/" + "/".join(current_base_dir) + "/" + dir_new_default_string).split("/")[1:]
+			if dir_new_default_string[0] != "/":
+				dir_new_default_string = ("/" + "/".join(current_base_dir) + "/" + dir_new_default_string).replace("//","/")
+			dir_new_default_string = os.path.normpath(dir_new_default_string).split("/")
 			dir_string = ""
 			dir_deviate_sub_name = ""
 			dir_deviate_destination_name = ""
 			dir_child_iteration = 0
 			small_relative_dir_creation = [""]
-			for dir_new_sub_name in dir_new_default_string:
-				dir_base_use = False
-				dir_new_sub_name_generation_continue = True
-				if dir_child_iteration < len(current_base_dir):
-					dir_base_use = True
-				if dir_base_use:
-					if dir_new_sub_name == current_base_dir[dir_child_iteration]:
-						dir_string = dir_string + "/" + dir_new_sub_name
-						dir_new_sub_name_generation_continue = False
-				if dir_new_sub_name_generation_continue:
-					if dir_child_iteration == len(dir_new_default_string) - 1:
-						dir_deviate_destination_name = dir_new_sub_name
-						if len(small_relative_dir_creation) > 1:
-							small_relative_dir_creation.append(small_relative_dir_creation[-1] + "/" + dir_new_sub_name)
-						else:
-							small_relative_dir_creation.append(small_relative_dir_creation[-1] + dir_new_sub_name)
+			dir_string_name = "/"
+			dir_scouse_iteration = 1
+			for directory_persist in dir_new_default_string:
+				dir_string_parent_name = dir_string_name
+				dir_string_name = (dir_string_name + directory_persist + "/").replace("//","/")
+				if directory_persist == "":
+					self.change_directory(["/"])
+				elif self.change_directory([directory_persist]) != None:
+					if create_directory_parents and len(dir_new_default_string) != dir_scouse_iteration:
+						try:
+							os.mkdir(self.base_directory + dir_string_name)
+							if verbose:
+								response.append("mkdir: created directory '" + dir_string_name.rstrip("/") + "'")
+						except OSError as e:
+							response.append("mkdir: failed to create the directory '" + dir_string_name.rstrip("/") + "'")
+							continue
+					elif len(dir_new_default_string) == dir_scouse_iteration:
+						try:
+							os.mkdir(self.base_directory + dir_string_name)
+							if verbose:
+								response.append("mkdir: created directory '" + dir_string_name.rstrip("/") + "'")
+						except OSError as e:
+							response.append("mkdir: failed to create the directory '" + dir_string_name.rstrip("/") + "'")
+							continue
 					else:
-						dir_deviate_sub_name = dir_deviate_sub_name + "/" + dir_new_sub_name
-						if len(small_relative_dir_creation) > 1:
-							small_relative_dir_creation.append(small_relative_dir_creation[-1] + "/" + dir_new_sub_name)
-						else:
-							small_relative_dir_creation.append(small_relative_dir_creation[-1] + dir_new_sub_name)
-				dir_child_iteration += 1
-			dir_child_iteration = 1
-			if self.change_directory([dir_string]) == None:
-				if len(dir_deviate_sub_name) == 0:
-					if self.change_directory([self.get_cwd() + "/" + dir_deviate_destination_name]) != None:
-						os.mkdir(self.get_cwd() + "/" + dir_deviate_destination_name)
-						if verbose:
-							response.append("mkdir: created directory '" + dir_deviate_destination_name + "'")
-					else:
-						response.append("mkdir: cannot create directory '" + dir_deviate_destination_name + "' as directory exists")
-				else:
-					dir_active_recent = "."
-					dir_creation_failed = False
-					dir_new_sub_name_iteration = 0
-					for dir_new_sub_name in dir_deviate_sub_name.split("/")[1:]:
-						dir_new_sub_name_iteration += 1
-						if self.change_directory([dir_new_sub_name]) != None:
-							if create_directory_parents:
-								os.mkdir(self.get_cwd() + "/" + dir_new_sub_name)
-								self.change_directory([dir_new_sub_name])
-								dir_string = dir_string + "/" + dir_new_sub_name
-								if verbose:
-									response.append("mkdir: created directory '" +  small_relative_dir_creation[dir_child_iteration] + "'")
-							else:
-								while dir_child_iteration < len(small_relative_dir_creation):
-									response.append("mkdir: cannot create directory '" + small_relative_dir_creation[dir_child_iteration] + "' as no file or directory exists")
-									dir_child_iteration += 1
-									dir_creation_failed = True
-								break
-						if dir_new_sub_name_iteration == (len(dir_deviate_sub_name.split("/")) - 1):
-							self.change_directory([".."])
-						dir_child_iteration+=1
-						dir_active_recent = dir_new_sub_name
-					if not dir_creation_failed:
-						if self.change_directory([dir_active_recent]) == None:
-							if self.change_directory([dir_deviate_destination_name]) != None:
-								os.mkdir(self.get_cwd() + "/" + dir_deviate_destination_name);
-								if verbose:
-									response.append("mkdir: created directory '" +  small_relative_dir_creation[-1] + "'")
-							else:
-								response.append("mkdir: cannot create directory '" + small_relative_dir_creation[-1] + "' as directory exists")
-						else:
-							response.append("mkdir: cannot create directory '" + small_relative_dir_creation[-1] + "' as directory parent has vanish")
-			else:
-				response.append("mkdir: cannot create directory '" + dir_new_sub_name + "' as directory exists")
-		current_base_dir = "/" + "/".join(current_base_dir)
-		if self.get_cwd() != current_base_dir:
-			self.change_directory([current_base_dir])
+						response.append("mkdir: cannot create directory '" + dir_string_name.rstrip("/") + "' as no file or directory exists")
+						continue
+				elif len(dir_new_default_string) == dir_scouse_iteration:
+					response.append("mkdir: cannot create directory '" + dir_string_name.rstrip("/") + "' as directory exists")
+				dir_scouse_iteration += 1
+		self.change_directory(["/".join(current_base_dir)])
 		return response
 
 	def link(self, files=[]):
-		if len(files) > 1:
+		if len(files) >= 1:
 			if len(files) == 1:
 				return "link: missing operand after '" + files[0] + "'"
 			elif len(files) == 2:
-				files_raw = files
-				if not files[0].startswith("/"):
-					files[0] = os.path.abspath(files[0])
+				files_raw = [files][0]
+				if self.stable:
+					files[0] = (self.base_directory + os.path.abspath({True:"",False:(self.get_display_cwd() + "/").replace("//","/")}[files[0].startswith("/")] + files[0])).replace("//","/")
+					files[1] = (self.base_directory + os.path.abspath({True:"",False:(self.get_display_cwd() + "/").replace("//","/")}[files[1].startswith("/")] + files[1])).replace("//","/")
+				else:
+					if not files[0].startswith("/"):
+						files[0] = self.dir_abspath(files[0])
+					if not files[1].startswith("/"):
+						files[1] = self.dir_abspath(files[1])
 				if os.path.exists(files[0]):
 					if os.path.isfile(files[0]):
 						if not files[1].startswith("/"):
-							files[1] = os.path.abspath(files[1])
+							files[1] = self.dir_abspath(files[1])
 						if os.path.exists(files[1]):
 							return "link: cannot create link from '" + files_raw[0] + "' as the file '" + files_raw[1] + "' exists"
 						else:
@@ -703,16 +1517,20 @@ class core(threading.Thread):
 			return "unlink: missing operand"
 		else:
 			file = file[0]
-			if not file.startswith("/"):
-				file = os.path.abspath(file)
+			file_raw = file
+			if self.stable:
+				file = (self.base_directory + (os.path.abspath({True:"",False:(self.get_display_cwd() + "/").replace("//","/")}[file.startswith("/")] + file))).replace("//","/")
+			else:
+				if not file.startswith("/"):
+					file = self.dir_abspath(file)
 			if os.path.exists(file):
 				if os.path.isfile(file):
 					os.unlink(file)
 					return None
 				else:
-					return "unlink: cannot unlink '" + file + "' as it is a directory"
+					return "unlink: cannot unlink '" + file_raw + "' as it is a directory"
 			else:
-				return "unlink: cannot unlink '" + file + "' as no file or directory"
+				return "unlink: cannot unlink '" + file_raw + "' as no file or directory"
 
 	def remove(self,args=[]):
 		force = False
@@ -727,7 +1545,7 @@ class core(threading.Thread):
 				if not arg.startswith("-"):
 					to_remove.append(arg)
 				else:
-					if arg in ["-v","verbose"]:
+					if arg in ["-v","--verbose"]:
 						verbose = True
 					elif arg in ["-f","--force"]:
 						force = True
@@ -750,241 +1568,106 @@ class core(threading.Thread):
 			return ["rm: missing operand"]
 		else:
 			to_remove_tree = []
-			for remove in to_remove:
-				file_raw_location = remove
+			current_active_directory = self.get_display_cwd()
+			to_remove_iteration = 0
+			to_remove_default = list(to_remove)
+			while to_remove_iteration < len(to_remove):
+				self.change_directory([current_active_directory])
+				remove = to_remove[to_remove_iteration]
+				remove = self.directory_restrict(self.dir_abspath(self.base_directory + {True:"",False:self.get_display_cwd()+"/"}[remove.startswith("/")] + remove).replace("//","/"))[1]
+				to_remove_iteration += 1
 				if not remove.startswith("/"):
-					remove = os.path.abspath(remove)
+					remove = current_active_directory + {True:"",False:"/"}[current_active_directory.endswith("/")] + remove
 				if remove.endswith("*"):
-					remove = remove.split("/")
-					if remove[-1] == "*":
-						remove.pop()
-					if remove == [""]:
-						remove = "/"
+					remove = remove.rstrip("*")
+					if self.change_directory([remove]) == None:
+						if to_remove[to_remove_iteration-1] in to_remove_default:
+							for x in range(len(to_remove_default)):
+								if to_remove_default[x] == to_remove[to_remove_iteration-1]:
+									to_remove_default[x] = remove
+									break
+						to_remove_tree_sub_rel = self.ls(["-A","--color","never"])
+						for x in range(len(to_remove_tree_sub_rel)):
+							to_remove.insert(to_remove_iteration+x,remove+to_remove_tree_sub_rel[x])
+						continue
 					else:
-						remove = "/".join(remove)
-				if os.path.exists(remove):
-					if os.path.isdir(remove):
-						to_remove_tree_rel = []
-						if recursive:
-							to_remove_tree_rel.extend([ 
-								[os.path.abspath(os.path.join(parent, name)),os.path.isdir(os.path.join(parent, name))]
-								for (parent, subdirs, files) in os.walk(remove)
-								for name in files + subdirs
-							])
-						else:
-							to_remove_files_rel = [[os.path.abspath(file),file[-1] == "/"] for file in self.ls(["-A","-f"])]
-							to_remove_tree_rel.extend(to_remove_files_rel)
-						for to_remove_tree_loc in to_remove_tree_rel:
-							is_relative = False
-							is_dir = False
-							if len(to_remove_tree_loc) == 2:
-								is_dir = to_remove_tree_loc[1]
-							elif to_remove_tree_loc[0][-1] == "/":
-								is_dir = True
-							if to_remove_tree_loc[0].startswith(self.get_cwd()):
-								is_relative = True
-								to_remove_tree_loc[0] = to_remove_tree_loc[0][len(self.get_cwd())+1:]
-							to_remove_tree_loc[0] = to_remove_tree_loc[0].split("/")
-							if to_remove_tree_loc[0][-1] == "":
-								del to_remove_tree_loc[0][-1]
-							if to_remove_tree_loc[0][0] == "" and not is_relative:
-								del to_remove_tree_loc[0][0]
-							if to_remove_tree_loc[-1] == "":
-								to_remove_tree.append([to_remove_tree_loc[0].pop(),to_remove_tree_loc[0],is_relative,True,is_dir])
-							if len(to_remove_tree_loc) > 1:
-								to_remove_tree.append([to_remove_tree_loc[0].pop(),to_remove_tree_loc[0],is_relative,False,is_dir])
-							else:
-								to_remove_tree.append([to_remove_tree_loc[0],None,False,False,is_dir])
-					elif os.path.isfile(remove):
-						to_remove_tree.append([remove,None,False,True,False])
-				else:
-					response.append("rm: cannot remove '" + file_raw_location + "' as no file or directory exists")
-			if len(to_remove_tree) > 0:
-				to_remove_tree_sorted = []
-				to_remove_tree_sorted_none = []
-				for file in to_remove_tree:
-					if file[1] == None:
-						file[1] = []
-						to_remove_tree_sorted_none.append(file)
-					else:
-						to_remove_tree_sorted.append(file)
-				sorted(to_remove_tree_sorted,key=lambda x: x[1], reverse=True)
-				to_remove_tree_sorted_none.extend(to_remove_tree_sorted)
-				to_remove_tree = to_remove_tree_sorted_none
-				del to_remove_tree_sorted
-				del to_remove_tree_sorted_none
-				if (prompt_3_plus and len(to_remove_tree) > 3) or recursive:
-					if recursive:
-						if not prompt_every:
-							if self.input_method(1,"rm: remove " + str(len(to_remove_tree)) + " arguments recursively? ")[0] != "y":
-								return None
-					elif self.input_method(1,"rm: remove " + str(len(to_remove_tree)) + " arguments? ")[0] != "y":
-						return None
-				current_base_dir = self.get_cwd()
-				current_directory = []
-				to_remove_tree_build = {None:[]}
-				for file in to_remove_tree:
-					if file[4]:
-						del file[4]
-						if file[1] == []:
-							to_remove_tree_build[file[0]] = []
-						else:
-							to_remove_tree_build["/".join(file[1] + [file[0]])] = []
-					elif file[1] == []:
-						del file[4]
-						to_remove_tree_build[None].append(file)
-					else:
-						del file[4]
-						to_remove_tree_build["/".join(file[1])].append(file)
-				to_remove_tree = {None:to_remove_tree_build[None]}
-				to_remove_tree_build.pop(None)
-				directory_name_keys = [*to_remove_tree_build.keys()]
-				directory_name_keys.sort()
-				directory_name_keys_iteration = []
-				for directory in directory_name_keys:
-					directory_layout = [directory]
-					for sub_directory in to_remove_tree_build:
-						if sub_directory != directory:
-							if sub_directory.startswith(directory+"/"):
-								directory_layout.append(sub_directory)
-					directory_layout = sorted(directory_layout)
-					for directory in directory_layout:
-						directory_name_keys_iteration.append(directory)
-					directory_layout = sorted(directory_layout,key=lambda x: os.path.splitext(x))
-					for directory in directory_layout:
-						to_remove_tree[directory] = to_remove_tree_build[directory]
-				to_remove_directories = []
-				for directory_name, files in to_remove_tree.items():
-					if directory_name != None:
-						directory_name = directory_name.split("/")
-					else:
-						directory_name = []
-					if directory_name != [] and files == []:
-						has_children = False
-						for directory in to_remove_tree.keys():
-							if directory == None:
-								continue
-							if directory.startswith("/".join(directory_name)+"/"):
-								has_children = True
+						response.append("rm: cannot remove '" + to_remove[to_remove_iteration-1] + "' as no file or directory exists")
+				to_remove_tree_sub = [remove,self.change_directory([remove]) == None]
+				if to_remove_tree_sub[1]:
+					if not recursive and not directory:
+						response.append("rm: cannot remove '" + to_remove[to_remove_iteration-1] + "' as it is a directory")
+						continue
+					to_remove_tree_sub_rel = [ 
+						self.directory_restrict(os.path.join(parent, name))[1]
+						for (parent, subdirs, files) in os.walk(self.base_directory+remove)
+						for name in files + subdirs
+					]
+					if to_remove_tree_sub_rel != [] and directory and not recursive:
+						response.append("rm: cannot remove '" + to_remove[to_remove_iteration-1] + "' as it is a directory")
+						continue
+					if to_remove[to_remove_iteration-1] in to_remove_default:
+						for x in range(len(to_remove_default)):
+							if to_remove_default[x] == to_remove[to_remove_iteration-1]:
+								to_remove_default[x] = remove
 								break
-						if not has_children:
-							if not recursive:
-								response.append("rm: cannot remove '" + "/".join(directory_name) + "' as it is a directory")
-							elif prompt_every:
-								if self.input_method(1,"rm: remove directory '" + "/".join(directory_name) + "'? ")[0] == "y":
-									if self.remove_directory(["/".join(directory_name)]) != []:
-										response.append("rm: cannot remove directory '" + "/".join(directory_name) + "'")
-									elif verbose:
-										response.append("removed '" + "/".join(directory_name) + "'")
-							elif self.remove_directory(["/".join(directory_name)]) != []:
-								response.append("rm: cannot remove directory '" + "/".join(directory_name) + "'")
-							elif verbose:
-								response.append("removed '" + "/".join(directory_name) + "'")
-						else:
-							if prompt_every:
-								if self.input_method(1,"rm: descend into directory '" + "/".join(directory_name) + "'? ")[0] != "y":
-									directory_name_keys_iteration_sub = directory_name_keys_iteration
-									for directory in directory_name_keys_iteration_sub:
-										if directory.startswith("/".join(directory_name)+"/"):
-											directory_name_keys_iteration.remove(directory)
-											to_remove_directories.remove(directory)
-									continue
-							to_remove_directories.insert(0,directory_name)
+					for x in range(len(to_remove_tree_sub_rel)):
+						to_remove.insert(to_remove_iteration+x,to_remove_tree_sub_rel[x])
+				to_remove_tree.append(to_remove_tree_sub + [("/"+"/".join(to_remove_tree_sub[0].split("/")[0:-1])).replace("//","/")])
+			self.change_directory([current_active_directory])
+			to_remove_default = [{True:"/",False:to_remove_default_loc.rstrip("/")}[to_remove_default_loc.rstrip("/") == "" and self.change_directory([current_active_directory])==None] for to_remove_default_loc in to_remove_default if self.change_directory([to_remove_default_loc]) == None]
+			self.change_directory([current_active_directory])
+			if len(to_remove_tree) > 3 and prompt_3_plus:
+				if self.input_method(1,"rm: remove " + str(len(to_remove_tree)) + " arguments recursively? ")[0] != "y":
+					return None
+			to_remove_tree = sorted(to_remove_tree,key=lambda x: Path(x[0]),reverse=True)
+			base_remove = None
+			remove_directories = []
+			current_directory_del = None
+			to_remove_tree = [x for i, x in enumerate(to_remove_tree) if i == to_remove_tree.index(x)]
+			for x in range(2):
+				to_remove_iteration = 0
+				while to_remove_iteration < len(to_remove_tree):
+					if x == 1:
+						to_remove = [False,False,""]
 					else:
-						if directory_name != []:
-							is_a_child = 0
-							if len(to_remove_directories) > 0:
-								if current_directory == to_remove_directories[0]:
-									to_remove_directories.reverse()
-									for dir_remove in to_remove_directories:
-										has_children = False
-										for directory in to_remove_directories:
-											if directory == None:
-												continue
-											if "/".join(directory).startswith("/".join(directory_name)+"/"):
-												has_children = True
-												break
-										if not has_children and dir_remove in directory_name_keys_iteration:
-											if dir_remove[:len(current_directory)] != current_directory:
-												if not recursive:
-													response.append("rm: cannot remove '" + "/".join(current_directory) + "' as it is a directory")
-												elif prompt_every:
-													if self.input_method(1,"rm: remove directory '" + "/".join(directory_name) + "'? ")[0] == "y":
-														if self.remove_directory(["/".join(directory_name)]) != []:
-															response.append("rm: cannot remove directory '" + "/".join(directory_name) + "'")
-														elif verbose:
-															response.append("removed '" + "/".join(directory_name) + "'")
-												elif self.remove_directory(["/".join(directory_name)]) != []:
-													response.append("rm: cannot remove directory '" + "/".join(directory_name) + "'")
-												elif verbose:
-													response.append("removed '" + "/".join(file[1])+"/"+file[0] + "'")
-												to_remove_directories.remove(directory_name)
-									to_remove_directories.reverse()
+						to_remove = to_remove_tree[to_remove_iteration]
+					if to_remove[1] and x == 0:
+						if not to_remove[0] in to_remove_default:
 							if prompt_every:
-								if self.input_method(1,"rm: descend into directory '" + "/".join(directory_name) + "'? ")[0] != "y":
-									directory_name_keys_iteration_sub = directory_name_keys_iteration
-									for directory in directory_name_keys_iteration_sub:
-										if directory.startswith("/".join(directory_name)+"/"):
-											directory_name_keys_iteration.remove(directory)
-											to_remove_directories.remove(directory)
+								self.change_directory([to_remove[0]])
+								if self.ls(["-A"]) != []:
+									if self.input_method(1,"rm: descend into directory '" + str(to_remove[0]) + "'? ")[0] != "y":
+										self.change_directory([to_remove[0]])
+										continue
+								self.change_directory([current_active_directory])
+						if to_remove[0].split("/") not in remove_directories:
+							remove_directories.append(to_remove[0].split("/"))
+					else:
+						remove_directory_iteration = 0
+						while remove_directory_iteration < len(remove_directories):
+							remove_directory = remove_directories[remove_directory_iteration]
+							if to_remove[2].split("/")[0:len(remove_directory)] != remove_directory[0:len(to_remove)] or x == 1 or remove_directory in to_remove_default:
+								if prompt_every and not directory and remove_directory not in to_remove_default:
+									if self.input_method(1,"rm: remove directory '" + "/".join(remove_directory) + "'? ")[0] != "y":
+										del remove_directories[remove_directory_iteration]
+										del to_remove_tree[to_remove_iteration]
+										continue
+								operation_success = self.remove_directory(["/".join(remove_directory)]) == []
+								if verbose or not operation_success:
+									response.append({True:"removed",False:"rm: cannot remove directory"}[operation_success] + " '" + "/".join(remove_directory) + "'")
+								del remove_directories[remove_directory_iteration]
+								continue
+							remove_directory_iteration+=1
+						if x == 0:
+							if prompt_every:
+								if self.input_method(1,"rm: remove regular " + {True:"empty ",False:""}[len(self.concatenate([to_remove[0]])) == 0] + "file '" + to_remove[0] + "'? ")[0] != "y":
 									continue
-							to_remove_directories.insert(0,directory_name)
-						current_directory = directory_name
-						for file in files:
-							if file != [None,[],False,False]:
-								file_name_raw_concatenated = file[0]
-								if file[3]:
-									file_name_raw_concatenated = file[0]
-								else:
-									if file[1] != None and file[1] != []:
-										file_name_raw_concatenated = "/".join(directory_name) + "/" + file[0]
-									if not file[2]:
-										file_name_raw_concatenated = current_base_dir + "/" + "/".join(directory_name) + "/" + file[0]
-								if prompt_every:
-									if len(self.concatenate([file_name_raw_concatenated])) == 0:
-										if self.input_method(1,"rm: remove regular empty file '" + file_name_raw_concatenated + "'? ")[0] != "y":
-											continue
-									elif self.input_method(1,"rm: remove regular file '" + file_name_raw_concatenated + "'? ")[0] != "y":
-										continue
-								if self.unlink([file_name_raw_concatenated]) != None:
-									if system.proc.is_fg_type(self.process_id):
-										self.output_method(0,"rm: cannot remove '" + file_name_raw_concatenated + "'")
-									else:
-										response.append("rm: cannot remove '" + file_name_raw_concatenated + "'")
-								elif verbose:
-									if system.proc.is_fg_type(self.process_id):
-										self.output_method(0,"removed '" + file_name_raw_concatenated + "'")
-									else:
-										response.append("removed '" + file_name_raw_concatenated + "'")
-				if current_directory != []:
-					to_remove_directories = sorted(to_remove_directories,key=lambda x: os.path.splitext("/".join(x)))
-					while len(to_remove_directories) > 0:
-						for dir_remove in to_remove_directories:
-							dir_remove = "/".join(dir_remove)
-							if not recursive:
-								response.append("rm: cannot remove '" + dir_remove + "' as it is a directory")
-								to_remove_directories.remove(dir_remove)
-							else:
-								has_children = False
-								for directory in to_remove_directories:
-									if directory == None:
-										continue
-									if "/".join(directory).startswith(dir_remove+"/"):
-										has_children = True
-										break
-								if not has_children:
-									if prompt_every:
-										if self.input_method(1,"rm: remove directory '" + dir_remove + "'? ")[0] == "y":
-											if self.remove_directory([dir_remove]) != []:
-												response.append("rm: cannot remove directory '" + dir_remove + "'")
-											elif verbose:
-												response.append("removed '" + dir_remove + "'")
-									elif self.remove_directory([dir_remove]) != []:
-										response.append("rm: cannot remove directory '" + dir_remove + "'")
-									elif verbose:
-										response.append("removed '" + dir_remove + "'")
-									to_remove_directories.remove(dir_remove.split("/"))
-		return response
+							operation_success = self.unlink([to_remove[0]]) == None
+							if verbose or not operation_success:
+								response.append({True:"removed",False:"rm: cannot remove"}[operation_success] + " '" + to_remove[0] + "'")
+					to_remove_iteration += 1
+				remove_directories = sorted(remove_directories,reverse=True)
+			return response
 
 	def remove_directory(self,args=[]):
 		verbose = False
@@ -996,7 +1679,7 @@ class core(threading.Thread):
 					if arg.startswith("/"):
 						dir_listings.append(arg)
 					else:
-						dir_listings.append(self.get_cwd() + "/" + arg)
+						dir_listings.append((self.get_display_cwd() + "/" + arg).replace("//","/"))
 				else:
 					if arg in ["-v","--verbose"]:
 						verbose = True
@@ -1009,16 +1692,16 @@ class core(threading.Thread):
 		if len(dir_listings) == 0:
 			return ["rmdir: missing operand"]
 		response = []
-		current_base_dir = self.get_cwd().split("/")[1:]
+		current_base_dir = self.get_display_cwd().split("/")[1:]
 		for dir_del in dir_listings:
 			if dir_del.startswith("/"):
 				is_root = "/"
 			else:
 				is_root = ""
 			dir_delete_default_string = dir_del
-			dir_del_default_string = os.path.abspath(dir_delete_default_string).split("/")[1:]
+			dir_del_default_string = dir_delete_default_string.split("/")[1:]
 			if current_base_dir == dir_del_default_string:
-				response.append("rmdir: failed to remove '" + self.get_cwd().split("/")[-1] + "' as the current directory cannot be deleted")
+				response.append("rmdir: failed to remove '" + self.get_display_cwd().split("/")[-1] + "' as the current directory cannot be deleted")
 				continue
 			dir_string = ""
 			dir_deviate_sub_name = ""
@@ -1059,16 +1742,19 @@ class core(threading.Thread):
 				dir_del_tree.reverse()
 				dir_deletion_iteration = 0
 				for dir_del_parent in dir_del_tree:
-					directory_contents = self.ls(["-a"])
-					if directory_contents != [".",".."]:
+					directory_contents = self.ls(["-A","--color","never"])
+					if directory_contents != []:
 						response.append("rmdir: failed to remove '" + is_root + small_relative_dir_creation[dir_deletion_iteration] + "' as directory is not empty")
 					else:
 						self.change_directory([".."])
 						if verbose:
 							response.append("rmdir: removing directory '" + is_root + small_relative_dir_creation[dir_deletion_iteration] + "'")
-						os.rmdir(self.get_cwd() + "/" + dir_del_parent)
+						try:
+							os.rmdir(self.get_cwd() + "/" + dir_del_parent)
+						except OSError as e:
+							response.append("rmdir: failed to remove '" + is_root + small_relative_dir_creation[dir_deletion_iteration] + "'")
 					dir_deletion_iteration+=1
-					if self.get_cwd() == os.path.abspath(dir_string):
+					if self.get_cwd() == self.dir_abspath(dir_string):
 						break;
 					elif not delete_directory_parent:
 						break;
@@ -1077,7 +1763,8 @@ class core(threading.Thread):
 					dir_del = "/"
 				else:
 					dir_del = "/".join(small_relative_dir_creation)
-				response.append("rmdir: failed to remove '" + dir_del + "' as no file or directory exists")
+				response.append("rmdir: 1failed to remove '" + dir_del + "' as no file or directory exists")
+			self.change_directory(["/" + "/".join(current_base_dir)])
 		current_base_dir = "/" + "/".join(current_base_dir)
 		if self.get_cwd() != current_base_dir:
 			self.change_directory([current_base_dir])
@@ -1108,21 +1795,67 @@ class core(threading.Thread):
 			response.append("")
 		return response
 
+	def touch(self,args=[]):
+		files = args
+		response = []
+		if len(files) == 0:
+			return ["touch: missing file operand"]
+		for x in range(len(files)):
+			raw_file_loc = files[x]
+			files[x] = (self.base_directory + (os.path.abspath({True:"",False:(self.get_display_cwd() + "/").replace("//","/")}[files[x].startswith("/")] + files[x]))).replace("//","/")
+			if not os.path.exists(files[x]):
+				with open(files[x], 'a'):
+					os.utime(files[x], None)
+		return response
+
+	def alias(self,args=[]):
+		response = []
+		print_aliases = False
+		if len(args) == 1:
+			if args[0] in "-p":
+				print_aliases = True
+		aliases = []
+		if not print_aliases:
+			aliases_iteration = 0
+			for arg in args:
+				if parser_split(arg)[0] != arg:
+					if len(aliases[aliases_iteration - 1]) == 2:
+						raise ValueError(arg)
+					arg = parser_split(arg)[0]
+					aliases[aliases_iteration - 1].append(arg)
+				else:
+					aliases.append([arg])
+					aliases_iteration += 1
+			for alias_values in aliases:
+				if len(alias_values) == 1:
+					if alias_values[0] in self.alias_vars.keys():
+						response.append("alias " + alias_values[0] + "='" + self.alias_vars[alias_values[0]] + "'")
+					else:
+						response.append("alias: " + alias_values[0] + ": not found")
+				else:
+					self.alias_vars[alias_values[0]] = alias_values[1]
+					response.append("alias " + alias_values[0] + "='" + alias_values[1] + "'")
+		if len(aliases) == 0:
+			for alias_name, aliases in self.alias_vars.items():
+				response.append("alias " + alias_name + "='" + aliases + "'")
+		return response
+
 	def grep(self,args=[]):
 		if self.pipe_in == None:
 			return ["grep: missing piped input stream"]
 		else:
 			response = []
-			response_raw = []
 			line_count = False
 			ignore_case = False
 			quiet = False
 			max_lines = -1
 			search = None
 			color = False
+			invert = False
 			get_next_parameter = [False,False]
 			for arg in args:
 				if get_next_parameter[0]:
+					get_next_parameter[0] = False
 					if get_next_parameter[1] == "-m":
 						if arg.isdigit():
 							arg = int(arg)
@@ -1142,9 +1875,11 @@ class core(threading.Thread):
 						quiet = True
 					elif arg in ["--color","--colour"]:
 						color = True
+					elif arg in ["-v","--invert-match"]:
+						invert = True
 					else:
 						raise ValueError(arg)
-				elif parser_split(arg) != arg:
+				elif parser_split(arg)[0] != arg:
 					search = " ".join(parser_split(arg))
 					continue
 			if search == None:
@@ -1154,27 +1889,25 @@ class core(threading.Thread):
 			if type(self.pipe_in) != list:
 				if type(self.pipe_in) == str:
 					self.pipe_in = self.pipe_in.split(" ")
-			entry_line_number = 0
 			for entry in self.pipe_in:
 				actual_entry = entry
 				if ignore_case:
 					entry = entry.lower()
-				entry_line_number += 1
-				if entry.find(search) >= 0:
-					if quiet:
-						return None
-					if color:
-						actual_entry = actual_entry.replace(search,"\033[1m\033[31m" + search + "\033[0m")
-					response_raw.append((entry_line_number,actual_entry))
-					if max_lines >= 0:
-						if len(response_raw) >= max_lines:
-							break
-			total_lines_character_size = len(response_raw)
-			for entry in response_raw:
-				if line_count:
-					response.append(str(entry[0]) + ":" + entry[1])
-				else:
-					response.append(entry[1])
+				if entry.find(search) >= 0 and invert:
+					continue
+				elif entry.find(search) < 0 and not invert:
+					continue
+				if quiet:
+					return None
+				if color:
+					actual_entry = actual_entry.replace(search,"\033[1m\033[31m" + search + "\033[0m")
+				response.append(actual_entry)
+				if max_lines >= 0:
+					if len(response) >= max_lines:
+						break
+			total_lines_character_size = len(response)
+			if line_count:
+				return [str(len(response))]
 			return response
 		return None
 
@@ -1199,6 +1932,8 @@ class core(threading.Thread):
 						only_unique = True
 					else:
 						raise ValueError(arg)
+				else:
+					raise ValueError(arg)
 			unique = []
 			for line in self.pipe_in:
 				unique_positional_list_loc = 0
@@ -1257,10 +1992,6 @@ class core(threading.Thread):
 				response.sort(reverse = reverse)
 			return response
 
-	def exit(self,args=[]):
-		raise SystemExit("exit")
-		return None
-
 	def clear(self,args=[]):
 		raise SystemExit("clear")
 		return None
@@ -1282,6 +2013,7 @@ class core(threading.Thread):
 		if len(args) >= 1:
 			for arg in args:
 				if get_next_parameter[0]:
+					get_next_parameter[0] = False
 					if get_next_parameter[1] == "-t":
 						if arg.isdigit():
 							arg = int(arg)
@@ -1310,7 +2042,7 @@ class core(threading.Thread):
 			return ["wget: missing operand"]
 		if input_file != False:
 			if not input_file.startswith("/"):
-				input_file = os.path.abspath(input_file)
+				input_file = self.dir_abspath(input_file)
 			if os.path.exists(input_file):
 				if os.path.isfile(input_file):
 					if locations == [False]:
@@ -1598,13 +2330,19 @@ class core(threading.Thread):
 		return response
 
 	def help(self,args=[]):
-		return ["Python terminal, version " + " ".join(self.uname(["-v"])) + " (" + " ".join(self.uname(["-r"])) + ")",
-				"These shell commands are defined internally.  Type 'help' to see this list.",
+		response = ["Python terminal, version " + " ".join(self.uname(["-v"])) + " (" + " ".join(self.uname(["-r"])) + ")",
+				"These shell commands are defined internally. Type 'help' to see this list.",
 				"Type 'man name' to find out more about the function 'name'.",
 				"",
 				"A star (*) next to a name means that the command is disabled.",
-				""] + [" "+(" - ".join([command,self.man(["-f",command])[0]])) for command in self.get_all_command_bases().keys()]
-
+				""]
+		for to_responsed in [{True:[command,self.man(["-f",command])],False:command}[self.man(["-f",command])!=[]] for command in sorted(self.get_all_command_bases().keys())]:
+			if type(to_responsed) == list:
+				to_responsed[1] = to_responsed[1][0]
+				response.append(" - ".join(to_responsed))
+			else:
+				response.append(to_responsed)
+		return response
 	def man(self,args=[]):
 		response = []
 		what_is = False
@@ -1622,9 +2360,9 @@ class core(threading.Thread):
 		if command == None:
 			return ["What manual page do you want?"]
 		else:
-			current_directory = self.get_cwd()
-			self.change_directory([self.base_directory+"/_docs"])
-			if arg+".man" in self.ls(["-A"]):
+			current_directory = self.get_display_cwd()
+			self.change_directory(["/usr/share/man"])
+			if arg+".man" in self.ls(["-A","--color","never"]):
 				command = self.concatenate([command+".man"])
 				parsed = {}
 				last_header = None
@@ -1664,21 +2402,31 @@ def terminal_parse(command = "", output = True, terminal = False):
 	else:
 		commands = command.split("|")
 		piped_commands = []
+		alias = {}
+		for alias_sub in terminal.alias(["-p"]):
+			alias_sub = alias_sub[6:]
+			alias_sub = alias_sub.split("='")
+			alias_name = alias_sub.pop(0)
+			alias[alias_name] = alias_name
+			alias_sub = "='".join(alias_sub)
+			alias_sub = alias_sub.split("'")
+			alias[alias_name] = "'".join(alias_sub[0:-1])
 		for command in commands:
 			original_command = command
-			command = parser_split(command)
+			command = parser_split(command,True,alias)
 			command_bases = terminal.get_all_command_bases()
 			if not command[0] in command_bases:
 				return str(command[0]) + ": Command not found!"
 			else:
 				if command_bases[command[0]][4]:
-					command = parser_split(original_command,posix=False)
+					command = parser_split(original_command,False,alias)
 				piped_commands.append(command)
 		del commands
 		end_of_pipe = len(piped_commands)
 		pipe_iteration = 0
 		piped_command = None
 		terminal.pipe_in = None
+		ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
 		for command in piped_commands:
 			if command[0] in command_bases:
 				if piped_command != None and command_bases[command[0]][3] == False:
@@ -1748,10 +2496,18 @@ def terminal_parse(command = "", output = True, terminal = False):
 										if type(response) != list:
 											response = [response]
 										for file in to_file[1]:
-											file_raw_location = file
-											if not file.startswith("/"):
-												file = terminal.get_cwd() + "/" + file
+											rel_file = file
 											file = os.path.abspath(file)
+											file = file.split("/")
+											filename = False
+											while filename == False:
+												if len(file) == 0:
+													return "Error: invalid location for here document"
+												filename = file.pop()
+												if len(filename) == "":
+													filename = False
+											file_raw_location = file
+											file = "/".join([terminal.directory_restrict("/".join(file))[0],filename])
 											try:
 												existsing_lines = 0
 												if output_type != "wb":
@@ -1759,9 +2515,9 @@ def terminal_parse(command = "", output = True, terminal = False):
 														existsing_lines = sum(1 for line in open(file,"rb"))
 												with open(file,output_type) as output_file:
 													if existsing_lines == 0:
-														output_file.write(bytes(str(response.pop(0)),"utf-8"))
+														output_file.write(bytes(str(ansi_escape.sub("",response.pop(0))),"utf-8"))
 													for input_to_output in response:
-														output_file.write(bytes(str("\n" + input_to_output),"utf-8"))
+														output_file.write(bytes(str("\n" + ansi_escape.sub("",input_to_output)),"utf-8"))
 													response = []
 											except Exception as e:
 												output_stat = True
@@ -1798,13 +2554,20 @@ def terminal_parse(command = "", output = True, terminal = False):
 										return return_response
 							else:
 								piped_command = command[0]
+								if type(response) == list:
+									for x in range(len(response)):
+										response[x] = ansi_escape.sub("",response[x])
 								terminal.pipe_in = response
+					except ProcessLookupError as e:
+						return "Fatal Error: missing reference for '" + str(e) + "'"
+					except ReferenceError as e:
+						return "Error: " + command[0] + " has a missing or invalid environment variable reference for '" + str(e) + "'"
 					except ValueError as e:
 						return "Error: invalid parameter '" + str(e) + "' in " + command[0]
 			else:
 				return "Command not found!"
 
-def parser_split(string,posix=True):
+def parser_split(string,posix=True,alias={}):
 	string = [char for char in string]
 	position_of_occurence = []
 	iteration_of_position = 0
@@ -1839,16 +2602,31 @@ def parser_split(string,posix=True):
 		if encapsulated[1] == False:
 			temp_string.append(encapsulated[0].replace("="," "))
 		else:
-			join_by.extend("".join(temp_string).split())
+			temp_string = "".join(temp_string).split()
+			for temp_string_sub in temp_string:
+				for alias_name, alias_value in alias.items():
+					if temp_string_sub == alias_name:
+						temp_string_sub = parser_split(alias_value)
+				if type(temp_string_sub) != list:
+					temp_string_sub = [temp_string_sub]
+				join_by.extend(temp_string_sub)
+			temp_string = []
 			if encapsulated[1] < 0:
 				continue
-			temp_string = []
 			if posix:
 				encapsulated[0] += 1
 				encapsulated[1] -= 1
 			join_by.append("".join(string[encapsulated[0]:encapsulated[1] + 1]))
 	if len(temp_string) > 0:
-		join_by.extend("".join(temp_string).split())
+		temp_string = "".join(temp_string).split()
+		for temp_string_sub in temp_string:
+			for alias_name, alias_value in alias.items():
+				if temp_string_sub == alias_name:
+					temp_string_sub = parser_split(alias_value)
+			if type(temp_string_sub) != list:
+				temp_string_sub = [temp_string_sub]
+			for temp_string_sub_increment in temp_string_sub:
+				join_by.append(temp_string_sub_increment)
 	return join_by
 
 

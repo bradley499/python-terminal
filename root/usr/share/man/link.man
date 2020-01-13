@@ -1,0 +1,8 @@
+NAME
+	link
+SYNOPSIS
+	link FILE1 FILE2
+ABOUT
+	call the link function to create a link to a file
+DESCRIPTION
+	Call the link function to create a link named FILE2 to an existing FILE1.

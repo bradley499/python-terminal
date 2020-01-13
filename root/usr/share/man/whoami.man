@@ -1,0 +1,8 @@
+NAME
+	whoami
+SYNOPSIS
+	whoami
+ABOUT
+	print effective userid
+DESCRIPTION
+	Print the user name associated with the current effective user ID.

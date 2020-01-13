@@ -1,0 +1,9 @@
+NAME
+	touch
+SYNOPSIS
+	touch [FILE]...
+ABOUT
+	change file timestamps
+DESCRIPTION
+	Update the access and modification times of each FILE to the current time.
+	A FILE argument that does not exist is created empty.

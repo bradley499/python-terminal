@@ -1,0 +1,17 @@
+NAME
+	cat
+SYNOPSIS
+	cat [OPTION]... [FILE]...
+ABOUT
+	concatenate files and print on the standard output
+DESCRIPTION
+	Concatenate FILE(s) to standard output.
+	With no FILE, or when FILE is -, read standard input.
+	-n, --number
+		number all output lines
+	-e, --show-ends
+		display $ at end of each line
+	-t, --show-tabs
+		display TAB characters as ^I
+	-s, --squeeze-blank
+		suppress repeated empty output lines
