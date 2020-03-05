@@ -2,6 +2,6 @@
 # version.py
 
 __version__ = "0.0.2"
-__release__ = 2425
+__release__ = 2469
 __build__ = "alpha"
-__time__ = 1578950689
+__time__ = 1583368512

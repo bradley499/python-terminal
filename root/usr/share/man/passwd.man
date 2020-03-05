@@ -1,0 +1,8 @@
+NAME
+	passwd
+SYNOPSIS
+	passwd
+ABOUT
+	change user password
+DESCRIPTION
+	The passwd command changes passwords for the current user accounts.

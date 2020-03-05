@@ -18,9 +18,6 @@ import random
 import re
 from pathlib import Path
 
-#testing
-import inspect
-
 class core(threading.Thread):
 	def __init__(self,base_dir=False):
 		self.set_all_command_bases()
@@ -41,7 +38,7 @@ class core(threading.Thread):
 		threading.Thread.__init__(self)
 
 	def set_all_command_bases(self, args=[]):
-		self.command_bases = {"pwd":[self.get_display_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"clear":[self.clear,["null"],False,False,False],"echo":[self.echo,["join/void"," "],False,False,False],"touch":[self.touch,["join/void"," "],False,False,False],"alias":[self.alias,["join/void","\n"],False,False,True],"login":[self.login,["join/void","\n"],False,False,False],"logout":[self.logout,["join/void","\n"],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"wget":[self.wget,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
+		self.command_bases = {"pwd":[self.get_display_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"clear":[self.clear,["null"],False,False,False],"echo":[self.echo,["join/void"," "],False,False,False],"touch":[self.touch,["join/void"," "],False,False,False],"alias":[self.alias,["join/void","\n"],False,False,True],"login":[self.login,["join/void","\n"],False,False,False],"logout":[self.logout,["join/void","\n"],False,False,False],"passwd":[self.passwd,["join/void","\n"],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"wget":[self.wget,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
 		return True
 
 	def get_all_command_bases(self, args=[]):
@@ -63,7 +60,7 @@ class core(threading.Thread):
 					if self.change_directory([self.base_directory]) != None:
 						self.output_method(0,"Failed to boot!")
 						self.output_method(0,"Unable to securely created restricted filesystem,")
-						self.output_method(0,"which resulted in the systeming exitting the boot")
+						self.output_method(0,"which resulted in the system exitting the boot")
 						self.output_method(0,"sequence; system will not boot further. Error in:")
 						self.output_method(0,self.base_directory)
 						self.base_directory = False
@@ -393,7 +390,7 @@ class core(threading.Thread):
 				while user_login_value == False:
 					if username == False:
 						self.output_method(1,user_login_display[user_login_breif] + ": ")
-						user_login_value = self.input_method(0)
+						user_login_value = self.input_method({True:2,False:0}[user_login_breif == "password"])
 					else:
 						user_login_value = username
 						username = False
@@ -453,8 +450,7 @@ class core(threading.Thread):
 									password_hash = password_hash_temp
 									break
 				if password_hash == False:
-					self.output(0,"Unable to locate password for '" + user_login_values["username"] + "'")
-					password_hash
+					self.output_method(0,"Unable to locate password for '" + user_login_values["username"] + "'")
 				else:
 					if self.passwd([],user_login_values["password"],password_hash):
 						self.alias(["$USER","'" + user_login_values["username"] + "'","$LOGNAME","'" + user_login_values["username"] + "'"])
@@ -587,6 +583,51 @@ class core(threading.Thread):
 				pwdhash = binascii.hexlify(pwdhash).decode('ascii')
 				return pwdhash == hashed_password
 		else:
+			password_hash = False
+			if os.path.exists(self.base_directory + "/etc/shadow"):
+				password_hash = self.concatenate(["/etc/shadow"])
+				for password in password_hash:
+					password = password.split(":")
+					if len(password) >= 2:
+						password_hash_temp = password.pop(-1)
+						password = ":".join(password)
+						if password == self.user:
+							password_hash = password_hash_temp
+							break
+			if password_hash == False:
+				return ["passwd: Unable to locate passwords for current user","passwd: password unchanged"]
+			self.output_method(1,"Current password: ")
+			cpwd = self.input_method(2)
+			if self.passwd([],cpwd,password_hash):
+				del cpwd
+				while True:
+					self.output_method(1,"New password: ")
+					npwd = [self.input_method(2),False]
+					self.output_method(1,"Retype new password: ")
+					npwd[1] = self.input_method(2)
+					if len(npwd[0].strip()) == 0:
+						self.output_method(0,"No password supplied")
+					else:
+						break
+				if npwd[0] != npwd[1]:
+					return ["Sorry, passwords do not match.","passwd: Authentication token manipulation error","passwd: password unchanged"]
+				else:
+					npwd = self.passwd([],npwd[0],False)
+					passwords = []
+					password_hash = self.concatenate(["/etc/shadow"])
+					for password in password_hash:
+						password = password.split(":")
+						if len(password) >= 2:
+							password_hash_temp = password.pop(-1)
+							password_user = ":".join(password)
+							if password_user == self.user:
+								password = [password_user,npwd]
+						passwords.append(":".join(password))
+					with open(self.base_directory + "/etc/shadow","w") as shadow_file:
+						shadow_file.write("\n".join(passwords)+"\n")
+					return ["passwd: password updated successfully"]
+			else:
+				return ["passwd: Authentication token manipulation error","passwd: password unchanged"]
 			'''
 			Not implemented yet
 			'''
@@ -687,7 +728,6 @@ class core(threading.Thread):
 				return ["useradd: incomplete argument reference for -" + {True:"p",False:"-password"}["-p" in args]]
 			elif user_name == False:
 				return ["useradd: expected a LOGIN to be provided"]
-
 			for required in ["UID_MIN","UID_MAX","CREATE_HOME"]:
 				if required not in key.keys():
 					raise ReferenceError(required)
@@ -2351,18 +2391,16 @@ class core(threading.Thread):
 			if arg.startswith("-"):
 				if arg in ["-f","--what-is"]:
 					what_is = True
-				else:
+				elif command == None:
 					raise ValueError(arg)
 			elif command == None:
 				command = arg
-			else:
-				raise ValueError(arg)
 		if command == None:
 			return ["What manual page do you want?"]
 		else:
 			current_directory = self.get_display_cwd()
 			self.change_directory(["/usr/share/man"])
-			if arg+".man" in self.ls(["-A","--color","never"]):
+			if command+".man" in self.ls(["-A","--color","never"]):
 				command = self.concatenate([command+".man"])
 				parsed = {}
 				last_header = None
@@ -2415,6 +2453,8 @@ def terminal_parse(command = "", output = True, terminal = False):
 			original_command = command
 			command = parser_split(command,True,alias)
 			command_bases = terminal.get_all_command_bases()
+			if len(command) == 0:
+				return "Error: syntax error no command occurred"
 			if not command[0] in command_bases:
 				return str(command[0]) + ": Command not found!"
 			else:
