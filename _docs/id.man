@@ -1,0 +1,14 @@
+NAME
+	id
+SYNOPSIS
+	id [OPTION] [USER]
+ABOUT
+	print real and effective user and group IDs
+DESCRIPTION
+	Print user and group information for the specified USER, or (when USER omitted) for the current user.
+	-g, --group
+		print only the effective group ID
+	-G, --groups
+		print all group IDs
+	-u, --user
+		print only the effective user ID

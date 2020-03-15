@@ -38,7 +38,7 @@ class core(threading.Thread):
 		threading.Thread.__init__(self)
 
 	def set_all_command_bases(self, args=[]):
-		self.command_bases = {"pwd":[self.get_display_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"clear":[self.clear,["null"],False,False,False],"echo":[self.echo,["join/void"," "],False,False,False],"touch":[self.touch,["join/void"," "],False,False,False],"alias":[self.alias,["join/void","\n"],False,False,True],"login":[self.login,["join/void","\n"],False,False,False],"logout":[self.logout,["join/void","\n"],False,False,False],"passwd":[self.passwd,["join/void","\n"],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"wget":[self.wget,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
+		self.command_bases = {"pwd":[self.get_display_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"clear":[self.clear,["null"],False,False,False],"echo":[self.echo,["join/void"," "],False,False,False],"touch":[self.touch,["join/void"," "],False,False,False],"alias":[self.alias,["join/void","\n"],False,False,True],"login":[self.login,["join/void","\n"],False,False,False],"logout":[self.logout,["join/void","\n"],False,False,False],"passwd":[self.passwd,["join/void","\n"],False,False,False],"useradd":[self.useradd,["join/void","\n"],False,False,False],"id":[self.id,["join/void"," "],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"wget":[self.wget,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
 		return True
 
 	def get_all_command_bases(self, args=[]):
@@ -155,7 +155,7 @@ class core(threading.Thread):
 		self.alias(["ls","'ls --color=auto'"])
 		self.output_method(0,"[Success]")
 		self.output_method(1,"Gathering user groups...    ")
-		system_usergroup_ids = self.id(["-G"])
+		system_usergroup_ids = self.id([])
 		system_usergroup_id = {"system":False,"root":False}
 		for base_group in system_usergroup_id.keys():
 			base_group = base_group
@@ -317,7 +317,10 @@ class core(threading.Thread):
 		else:
 			if mode == 0: # single line
 				if self.input_method_reference[0][1]:
-					return self.input_method_reference[0][0]() or " "
+					try:
+						return self.input_method_reference[0][0]() or " "
+					except:
+						raise EOFError()
 				else:
 					raise NotImplementedError("no input mehod defined")
 			elif mode == 1: # response value input
@@ -402,7 +405,7 @@ class core(threading.Thread):
 							user_login_build.append(user_login_sub)
 					user_login_value = "".join(user_login_build)
 					user_login_value = user_login_value.lstrip().rstrip()
-					if len(user_login_value) == 0:
+					if len(user_login_value) == 0 and user_login_breif != "password":
 						user_login_value = False
 					else:
 						user_login_values[user_login_breif] = user_login_value
@@ -449,7 +452,7 @@ class core(threading.Thread):
 								if password == uid_exists[1]:
 									password_hash = password_hash_temp
 									break
-				if password_hash == False:
+				if password_hash == False or type(password_hash) == list:
 					self.output_method(0,"Unable to locate password for '" + user_login_values["username"] + "'")
 				else:
 					if self.passwd([],user_login_values["password"],password_hash):
@@ -566,6 +569,13 @@ class core(threading.Thread):
 				return {True:{},False:[]}[keyed]
 
 	def passwd(self,args=[],password=False,hashed_password=False):
+		user_login = False
+		for arg in args:
+			if user_login != False:
+				return ["passwd: user LOGIN is already provided"]
+				break
+			user_login = arg
+
 		if password != False or hashed_password != False:
 			if hashed_password == False:
 				salt = hashlib.sha256(os.urandom(60)).hexdigest().encode('ascii')
@@ -584,6 +594,10 @@ class core(threading.Thread):
 				return pwdhash == hashed_password
 		else:
 			password_hash = False
+			user_defined_login = True
+			if user_login == False:
+				user_defined_login = False
+				user_login = self.user
 			if os.path.exists(self.base_directory + "/etc/shadow"):
 				password_hash = self.concatenate(["/etc/shadow"])
 				for password in password_hash:
@@ -591,14 +605,18 @@ class core(threading.Thread):
 					if len(password) >= 2:
 						password_hash_temp = password.pop(-1)
 						password = ":".join(password)
-						if password == self.user:
+						if password == user_login:
 							password_hash = password_hash_temp
 							break
 			if password_hash == False:
-				return ["passwd: Unable to locate passwords for current user","passwd: password unchanged"]
-			self.output_method(1,"Current password: ")
-			cpwd = self.input_method(2)
-			if self.passwd([],cpwd,password_hash):
+				if not user_defined_login:
+					return ["passwd: Unable to locate passwords for current user","passwd: password unchanged"]
+			cpwd = True
+			if password_hash != False and not user_defined_login:
+				self.output_method(1,"Current password: ")
+				cpwd = self.input_method(2)
+				cpwd = self.passwd([],cpwd,password_hash)
+			if cpwd:
 				del cpwd
 				while True:
 					self.output_method(1,"New password: ")
@@ -615,22 +633,22 @@ class core(threading.Thread):
 					npwd = self.passwd([],npwd[0],False)
 					passwords = []
 					password_hash = self.concatenate(["/etc/shadow"])
+					user_match = False
 					for password in password_hash:
 						password = password.split(":")
 						if len(password) >= 2:
-							password_hash_temp = password.pop(-1)
 							password_user = ":".join(password)
-							if password_user == self.user:
+							if password_user == user_login:
+								user_match = True
 								password = [password_user,npwd]
 						passwords.append(":".join(password))
+					if not user_match:
+						passwords.append(user_login + ":" + npwd)
 					with open(self.base_directory + "/etc/shadow","w") as shadow_file:
 						shadow_file.write("\n".join(passwords)+"\n")
 					return ["passwd: password updated successfully"]
 			else:
 				return ["passwd: Authentication token manipulation error","passwd: password unchanged"]
-			'''
-			Not implemented yet
-			'''
 			return False
 
 	def useradd(self,args=[]):
@@ -644,6 +662,7 @@ class core(threading.Thread):
 		comment = False
 		user_name = False
 		password = False
+		home_dir = False
 		if len(args) > 0:
 			get_next_parameter = [False,False]
 			possible_more = False
@@ -701,6 +720,9 @@ class core(threading.Thread):
 					elif arg in ["-c","--comment"]:
 						comment = True
 						get_next_parameter = [True,"-c"]
+					elif arg in ["-m","--create-home"]:
+						key["CREATE_HOME"] = True
+						home_dir = True
 					elif arg in ["-p","--password"]:
 						password = True
 						get_next_parameter = [True,"-p"]
@@ -736,6 +758,12 @@ class core(threading.Thread):
 						key[required] = int(key[required])
 						if key[required] < 0:
 							raise ReferenceError(required)
+					elif key[required].upper() in ["TRUE","FALSE"]:
+						if key[required].upper() == "TRUE":
+							key[required] = True
+						else:
+							key[required] = False
+
 			if unique_id not in [True,False]:
 				if non_unique:
 					if unique_id > key["UID_MAX"] or unique_id < key["UID_MIN"]:
@@ -775,7 +803,7 @@ class core(threading.Thread):
 					if not match:
 						group_limit.append([group_id,group_data[1],group_data[0]])
 				if not match:
-					return ["useradd: the provided GID '" + group + "' does not exist"]
+					return ["useradd: the provided GID '" + str(group) + "' does not exist"]
 			valid_uids = []
 			if os.path.exists(self.base_directory + "/etc/passwd"):
 				uids = self.concatenate(["/etc/passwd"])
@@ -813,18 +841,23 @@ class core(threading.Thread):
 						try:
 							unique_id = random.randint(key["UID_MIN"],key["UID_MAX"]+1)
 						except:
-							uid_generations += 1
-							if uid_generations == 2:
-								return ["useradd: the only possible UID from provided boundaries already exists - " + key["UID_MIN"]]
 							unique_id = key["UID_MIN"]
+						uid_generations += 1
+						if uid_generations >= 20:
+							return ["useradd: the only possible UID from provided boundaries already exists - " + str(key["UID_MIN"])]
+				print(uid_exists)
 			for group_restrict in group_limit:
 				if group_restrict[1] == "x":
 					pass
 				elif group_restrict[1] <= 0:
-					return ["useradd: the user group '" + group_restrict + "' cannot accommodate no more users"]
+					return ["useradd: the user group '" + str(group_restrict) + "' cannot accommodate no more users"]
 			uid_build = [user_name,{True:password,False:"x"}[password != False],",".join(groups),str(unique_id),{True:"",False:comment}[comment == False]]
 			with open(self.base_directory + "/etc/passwd","a+") as passwd_file:
 				passwd_file.write(":".join(uid_build)+"\n")
+			if key["CREATE_HOME"] == True:
+				if not home_dir and system:
+					return None
+				self.copy(["/etc/skel","/home/" + user_name + "/","-r"],False)
 			return None
 		return ["useradd: expected a LOGIN to be provided"]
 
@@ -846,11 +879,23 @@ class core(threading.Thread):
 		if user and (active_group_id or all_group_ids):
 			return ["id: cannot print 'only' of more than one choice"]
 		ids = {}
-		if user:
-			'''
-			Not Implemented Yet
-			'''
-			return []
+		if not all_group_ids:
+			if os.path.exists(self.base_directory + "/etc/passwd"):
+				uids = self.concatenate(["/etc/passwd"])
+				for uid in uids:
+					uid = uid.split(":")
+					if len(uid) == 5:
+						uid.pop()
+						if uid[3].isdigit():
+							if uid[2].isdigit():
+								uid[2] = int(uid[2])
+								ids[uid[0]] = [str(uid.pop(3)),False]
+				del uids
+			if user:
+				for user_login, user_id in ids.items():
+					if user_login == self.user:
+						return [user_id[0]]
+				return []
 		if os.path.exists(self.base_directory + "/etc/group"):
 			gids = self.concatenate(["/etc/group"])
 			for gid in gids:
@@ -861,11 +906,12 @@ class core(threading.Thread):
 					if gid[2].isdigit():
 						gid[2] = int(gid[2])
 						ids[gid[2]]=[gid[0],True]
+			del gids
 		if active_group_id:
-			'''
-			Not Implemented Yet
-			'''
-			None
+			if self.group != None:
+				return [str(self.group[0])]
+		elif all_group_ids:
+			return [str(gid) for gid in list(ids.keys())]
 		for gid, name in ids.items():
 			response.append({True:"g",False:"u"}[name[1]] + "id="+str(gid)+"(" + str(name[0]) + ")")
 		return response
@@ -1350,7 +1396,13 @@ class core(threading.Thread):
 					try:
 						with open(file,"rb") as output_file:
 							for line in output_file.readlines():
-								line = line.decode("utf-8")
+								try:
+									line = line.decode("UTF-8")
+								except:
+									try:
+										line = line.decode("ascii")
+									except:
+										raise Exception("Unknown encoding")
 								line = line.rstrip()
 								if show_tabulations:
 									line = line.replace("\t","^I")
@@ -1361,6 +1413,7 @@ class core(threading.Thread):
 										previous_line = line
 									output_stream.append(line)
 					except Exception as e:
+						output_stream = []
 						output_error_stream.append("cat: unable to read the file '" + file_relative + "' as the encoding type is not dynamically supported")
 		total_lines = len(output_stream)
 		total_lines_character_size = len(str(total_lines))
@@ -2156,12 +2209,13 @@ class core(threading.Thread):
 						if verbose > 0:
 							self.output_method(1,"HTTP request sent, awaiting response... ")
 							break
-					except (socket.error, socket.timeout) as e:
+					except (socket.error, socket.timeout, ValueError) as e:
 						if verbose > 0:
 							self.output_method(0,"Unable to establish a connection to " + host)
 						else:
 							response.append("Unable to establish a connection to " + host)
-					except exc:
+						break
+					except:
 						pass
 				if resolve_failure:
 					if verbose <= 1:

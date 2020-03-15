@@ -12,6 +12,8 @@ def term_input():
 		return input()
 	except KeyboardInterrupt:
 		return EOFError
+	except Exception as e:
+		print(e)
 
 def term_pass_input():
 	try:

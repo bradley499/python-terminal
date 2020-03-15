@@ -24,6 +24,9 @@ This project is aimed to be used in an encapsulated environment (although it is 
  - ps
  - ping
  + pwd
+ + useradd
+ + groupadd
+ + id
  + whoami
  + uname
  + hostname

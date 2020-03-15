@@ -1,0 +1,30 @@
+NAME
+	useradd
+SYNOPSIS
+	useradd [OPTION] LOGIN
+ABOUT
+	create a new user or update default new user information
+DESCRIPTION
+	useradd is a low level utility for adding users.
+	-c, --comment
+		Any text string. It is generally a short description of the login, and is currently used as the field for the user's full name.
+	-g, --gid
+		The group name id of the user's initial login group. A group number must refer to an already existing group.
+	-G, --groups
+		A list of supplementary groups which the user is also a member of. Each group is separated from the next by a comma, with no intervening whitespace. The groups are subject to the same restrictions as the group given with the -g option. The default is for the user to belong only to the initial group.
+	-K, --key
+		Overrides /etc/login.defs defaults (UID_MIN, UID_MAX, and others).
+	-m, --create-home
+		Create the user's home directory if it does not exist. The files and directories contained in the skeleton directory will be copied to the home directory.
+	-o, --non-unique
+		Allow the creation of a user account with a duplicate (non-unique) UID.
+		This option is only valid in combination with the -u option.
+	-p, --password
+		The encrypted password. The default is to disable the password.
+		Note: This option is not recommended because the password (or encrypted password) will be visible by users listing the processes.
+		You should make sure the password respects the system's password policy.
+	-r, --system
+		Create a system account.
+		System users will be created with no aging information in /etc/shadow, and their numeric identifiers are chosen in the SYS_UID_MIN-SYS_UID_MAX range, defined in /etc/login.defs, instead of UID_MIN-UID_MAX (and their GID counterparts for the creation of groups).
+	-u, --uid
+		The numerical value of the user's ID. This value must be unique, unless the -o option is used. The value must be non-negative. The default is to use the smallest ID value greater than or equal to UID_MIN and greater than every other user.
