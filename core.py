@@ -16,10 +16,11 @@ import hashlib
 import binascii
 import random
 import re
+import tarfile
 from pathlib import Path
 
 class core(threading.Thread):
-	def __init__(self,base_dir=False):
+	def __init__(self,base_dir="root/"):
 		self.set_all_command_bases()
 		self.dir = False
 		self.pipe_in = None
@@ -38,7 +39,7 @@ class core(threading.Thread):
 		threading.Thread.__init__(self)
 
 	def set_all_command_bases(self, args=[]):
-		self.command_bases = {"pwd":[self.get_display_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"clear":[self.clear,["null"],False,False,False],"echo":[self.echo,["join/void"," "],False,False,False],"touch":[self.touch,["join/void"," "],False,False,False],"alias":[self.alias,["join/void","\n"],False,False,True],"login":[self.login,["join/void","\n"],False,False,False],"logout":[self.logout,["join/void","\n"],False,False,False],"passwd":[self.passwd,["join/void","\n"],False,False,False],"useradd":[self.useradd,["join/void","\n"],False,False,False],"id":[self.id,["join/void"," "],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"wget":[self.wget,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
+		self.command_bases = {"pwd":[self.get_display_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"clear":[self.clear,["null"],False,False,False],"echo":[self.echo,["join/void"," "],False,False,False],"touch":[self.touch,["join/void"," "],False,False,False],"alias":[self.alias,["join/void","\n"],False,False,True],"login":[self.login,["join/void","\n"],False,False,False],"logout":[self.logout,["join/void","\n"],False,False,False],"passwd":[self.passwd,["join/void","\n"],False,False,False],"useradd":[self.useradd,["join/void","\n"],False,False,False],"groupadd":[self.groupadd,["join/void","\n"],False,False,False],"id":[self.id,["join/void"," "],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"wget":[self.wget,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
 		return True
 
 	def get_all_command_bases(self, args=[]):
@@ -48,23 +49,28 @@ class core(threading.Thread):
 	def set_definition(self,complete = False):
 		self.definition_complete = complete == True
 		system.proc.set_output_method(self.output_method_reference[0][0])
+		unpack = False
 		if self.definition_complete:
-			self.output_method(1,"Scanning for file system... ")
-			if self.base_directory != False:
-				base_dir_exists = self.change_directory([self.base_directory]) == None
-				self.output_method(0,"[" + {True:"Success",False:"Failed"}[base_dir_exists] + "]")
-				if not base_dir_exists:
-					self.output_method(1,"Creating file system (" + self.base_directory + ")... ")
-					base_dir_exists = len(self.create_directory([self.base_directory])) == 0
-					self.output_method(0,"[" + {True:"Success",False:"Failed"}[base_dir_exists] + "]")
-					if self.change_directory([self.base_directory]) != None:
-						self.output_method(0,"Failed to boot!")
-						self.output_method(0,"Unable to securely created restricted filesystem,")
-						self.output_method(0,"which resulted in the system exitting the boot")
-						self.output_method(0,"sequence; system will not boot further. Error in:")
-						self.output_method(0,self.base_directory)
-						self.base_directory = False
-						return False
+			self.output_method(1,"Scanning for file system...  ")
+			base_dir_exists = self.change_directory([self.base_directory]) == None
+			self.output_method(0,"[" + {True:"Success",False:"Failed"}[base_dir_exists] + "]")
+			if not base_dir_exists:
+				self.output_method(1,"Creating host file system... ")
+				os.mkdir(self.base_directory)
+				if self.change_directory([self.base_directory]) != None:
+					self.output_method(0,"[Failed]")
+					for x in range(0,3):
+						self.output_method(0,"")
+					self.output_method(0,"Failed to boot!")
+					self.output_method(0,"Unable to securely created restricted filesystem,")
+					self.output_method(0,"which resulted in the system exitting the boot")
+					self.output_method(0,"sequence; system will not boot further. Error in:")
+					self.output_method(0,self.base_directory)
+					self.base_directory = False
+					raise SystemExit()
+				else:
+					self.output_method(0,"[Success]")
+					unpack = True
 			else:
 				self.base_directory = os.getcwd()
 			self.change_directory(self.rel_base_directory)
@@ -72,32 +78,17 @@ class core(threading.Thread):
 			self.base_directory = os.path.abspath(self.base_directory)
 		self.stable = True
 		self.change_directory(["/"])
-		self.output_method(1,"Unpacking file system...    ")
-		self.output_method(0,"[Success]")
-		#if self.change_directory(["/usr/share/man"]) != None:
-		#	self.create_directory(["/usr/share/man","-p"])
-		#self.change_directory(["/"])
-		#local_docs = self.change_directory(["/usr/share/man"]) == None
-		#if local_docs:
-		#	local_docs = self.ls(["-A","-p","--color","never"])
-		#	valid_local_docs = []
-		#	for local_doc_reference in local_docs:
-		#		if local_doc_reference.endswith(".man"):
-		#			valid_local_docs.append(local_doc_reference)
-		#	local_docs = valid_local_docs
-		#	del valid_local_docs
-		#docs_transfer_iteration = 0
-		#doc_reference_location = os.listdir(self.rel_base_directory + "/_docs/")
-		#for doc in doc_reference_location:
-		#	docs_transfer_iteration += 1
-		#	if doc not in local_docs:
-		#		self.link([self.rel_base_directory + "/_docs/"+doc,doc])
-		#if docs_transfer_iteration == 0:
-		#	self.output_method(0,"[Failed]")
-		#else:
-		#	self.output_method(0,"[" + {True:"Success",False:"Partial"}[docs_transfer_iteration == len(doc_reference_location)] + "]")
-		#self.change_directory(["/"])
-		self.output_method(1,"Discovering environments... ")
+		if unpack:
+			self.output_method(1,"Unpacking file system...     ")
+			try:
+				tar = tarfile.open(self.rel_base_directory+"/sys/sd0.tar", "r:")
+				tar.extractall()
+				tar.close()
+				self.output_method(0,"[Success]")
+			except:
+				self.output_method(0,"[Failed]")
+				raise SystemExit()
+		self.output_method(1,"Discovering environments...  ")
 		invalid_conf_files = []
 		if self.change_directory(["/etc"]) != None:
 			if self.change_directory(["etc"]) != None:
@@ -149,12 +140,12 @@ class core(threading.Thread):
 					for failed_env_var_host in invalid_conf_files:
 						self.output_method(0,"Invalid environment host: " + failed_env_var_host)
 		self.change_directory(["/"])
-		self.output_method(1,"Generating relations...     ")
+		self.output_method(1,"Generating relations...      ")
 		self.alias(["exit","'logout'"])
 		self.alias(["la","'ls -A'"])
 		self.alias(["ls","'ls --color=auto'"])
 		self.output_method(0,"[Success]")
-		self.output_method(1,"Gathering user groups...    ")
+		self.output_method(1,"Gathering user groups...     ")
 		system_usergroup_ids = self.id([])
 		system_usergroup_id = {"system":False,"root":False}
 		for base_group in system_usergroup_id.keys():
@@ -177,12 +168,12 @@ class core(threading.Thread):
 							system_usergroup_id[base_group] = int(gid[0])
 		if False in [system_group_id != False for system_group_id in system_usergroup_id.values()]:
 			self.output_method(0,"[Missing]")
-			self.output_method(1,"Creating user groups...     ")
+			self.output_method(1,"Creating user groups...      ")
 			for base_group in system_usergroup_id.keys():
 				if system_usergroup_id[base_group] == False:
 					system_usergroup_id[base_group] = self.groupadd([base_group])
 		self.output_method(0,"[Success]")
-		self.output_method(1,"Searching for users...      ")
+		self.output_method(1,"Searching for users...       ")
 		valid_uids = []
 		if os.path.exists(self.base_directory + "/etc/passwd"):
 			uids = self.concatenate(["/etc/passwd"])
@@ -242,7 +233,7 @@ class core(threading.Thread):
 					user_requirements[list(user_requirements.keys())[password_hide[1]]] = False
 			del user_requirements[list(user_requirements.keys())[-1]]
 			self.output_method(0,"")
-			self.output_method(1,"Creating user account...    ")
+			self.output_method(1,"Creating user account...     ")
 			try:
 				if self.useradd([user_requirements["LOGIN"],"-c",user_requirements["comment"],"-g",str(system_usergroup_id["root"])]) == None:
 					with open(self.base_directory + "/etc/shadow","a+") as shadow_file:
@@ -257,6 +248,8 @@ class core(threading.Thread):
 					self.output_method(0,"[Failed]")
 			except ProcessLookupError:
 				self.output_method(0,"[Failed]")
+			self.output_method(0,"")
+			self.welcome()
 		if self.user == None:
 			self.output_method(0,"")
 			self.login([])
@@ -845,7 +838,6 @@ class core(threading.Thread):
 						uid_generations += 1
 						if uid_generations >= 20:
 							return ["useradd: the only possible UID from provided boundaries already exists - " + str(key["UID_MIN"])]
-				print(uid_exists)
 			for group_restrict in group_limit:
 				if group_restrict[1] == "x":
 					pass
@@ -1856,7 +1848,7 @@ class core(threading.Thread):
 					dir_del = "/"
 				else:
 					dir_del = "/".join(small_relative_dir_creation)
-				response.append("rmdir: 1failed to remove '" + dir_del + "' as no file or directory exists")
+				response.append("rmdir: failed to remove '" + dir_del + "' as no file or directory exists")
 			self.change_directory(["/" + "/".join(current_base_dir)])
 		current_base_dir = "/" + "/".join(current_base_dir)
 		if self.get_cwd() != current_base_dir:
