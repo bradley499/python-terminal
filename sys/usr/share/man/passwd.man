@@ -1,8 +1,8 @@
 NAME
 	passwd
 SYNOPSIS
-	passwd
+	passwd [LOGIN]
 ABOUT
 	change user password
 DESCRIPTION
-	The passwd command changes passwords for the current user accounts.
+	The passwd command changes passwords for the current user account, or the one provided by LOGIN.
