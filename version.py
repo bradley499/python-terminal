@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # version.py
 
-__version__ = "0.0.3"
-__release__ = 2568
+__version__ = "0.0.4"
+__release__ = 2671
 __build__ = "alpha"
-__time__ = 1584290513
+__time__ = 1585922659

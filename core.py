@@ -12,6 +12,8 @@ import datetime
 import math
 import socket
 import ssl
+import struct
+import select
 import hashlib
 import binascii
 import random
@@ -35,11 +37,12 @@ class core(threading.Thread):
 		self.stable = False
 		self.user = None
 		self.group = None
+		self.sys_groups = {}
 		self.set_cwd(self.rel_base_directory)
 		threading.Thread.__init__(self)
 
 	def set_all_command_bases(self, args=[]):
-		self.command_bases = {"pwd":[self.get_display_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"clear":[self.clear,["null"],False,False,False],"echo":[self.echo,["join/void"," "],False,False,False],"touch":[self.touch,["join/void"," "],False,False,False],"alias":[self.alias,["join/void","\n"],False,False,True],"login":[self.login,["join/void","\n"],False,False,False],"logout":[self.logout,["join/void","\n"],False,False,False],"passwd":[self.passwd,["join/void","\n"],False,False,False],"useradd":[self.useradd,["join/void","\n"],False,False,False],"groupadd":[self.groupadd,["join/void","\n"],False,False,False],"id":[self.id,["join/void"," "],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"wget":[self.wget,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
+		self.command_bases = {"pwd":[self.get_display_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"clear":[self.clear,["null"],False,False,False],"echo":[self.echo,["join/void"," "],False,False,False],"touch":[self.touch,["join/void"," "],False,False,False],"alias":[self.alias,["join/void","\n"],False,False,True],"login":[self.login,["join/void","\n"],False,False,False],"logout":[self.logout,["join/void","\n"],False,False,False],"passwd":[self.passwd,["join/void","\n"],False,False,False],"useradd":[self.useradd,["join/void","\n"],False,False,False],"groupadd":[self.groupadd,["join/void","\n"],False,False,False],"id":[self.id,["join/void"," "],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"ping":[self.ping,["join/void","\n"],False,True,True],"wget":[self.wget,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
 		return True
 
 	def get_all_command_bases(self, args=[]):
@@ -172,6 +175,7 @@ class core(threading.Thread):
 			for base_group in system_usergroup_id.keys():
 				if system_usergroup_id[base_group] == False:
 					system_usergroup_id[base_group] = self.groupadd([base_group])
+		self.sys_groups = system_usergroup_id
 		self.output_method(0,"[Success]")
 		self.output_method(1,"Searching for users...       ")
 		valid_uids = []
@@ -2082,10 +2086,187 @@ class core(threading.Thread):
 		return None
 
 	def ping(self,args=[]):
-		'''
-		Not implemented yet
-		'''
-		return False
+		response = []
+		count = False
+		quiet = False
+		host = False
+		interval = 1.0
+		payload = 56
+		timeout = 10
+		deadline = False
+		get_next_parameter = [False, False]
+		if len(args) >= 1:
+			for arg in args:
+				if get_next_parameter[0]:
+					get_next_parameter[0] = False
+					if get_next_parameter[1] == "-c":
+						if arg.isdigit():
+							arg = int(arg)
+							if 1 <= arg <= 9223372036854775807:
+								count = arg
+							else:
+								return ["ping: invalid argument: '" + str(arg) + "': out of range: 1 <= value <= 9223372036854775807"]
+						if count != arg:
+							return ["ping: invalid argument: '" + str(arg) + "'"]
+					elif get_next_parameter[1] == "-i":
+						try:
+							arg = float(arg)
+							if arg < 0.2:
+								if self.group[1][1] in self.sys_groups.values():
+									interval = arg
+								else:
+									return ["ping: cannot flood; minimal interval allowed for user is 200ms"]
+						except ValueError:
+							return ["ping: bad timing interval: " + str(arg)]
+					elif get_next_parameter[1] == "-s":
+						if arg.isdigit():
+							arg = int(arg)
+							if 0 <= arg <= 65535:
+								payload = arg - 8
+							else:
+								return ["ping: invalid argument: '" + str(arg) + "': Numerical result out of range"]
+						else:
+							return ["ping: invalid argument: '" + str(arg) + "'"]
+					elif get_next_parameter[1] == "-W":
+						if arg.isdigit():
+							arg = int(arg)
+							if 1 <= arg <= 9223372036854776:
+								timeout = arg
+							else:
+								return ["ping: invalid argument: '" + str(arg) +  "' out of range: 1 <= value <= 9223372036854776"]
+						else:
+							return ["ping: bad linger time: " + str(arg)]
+					elif get_next_parameter[1] == "-w":
+						if arg.isdigit():
+							arg = int(arg)
+							if 1 <= arg <= 9223372036854776:
+								deadline = arg
+							else:
+								return ["ping: invalid argument: '" + str(arg) +  "' out of range: 1 <= value <= 9223372036854776"]
+						else:
+							return ["ping: bad linger time: " + str(arg)]
+					get_next_parameter[1] = False
+					continue
+				if arg in ["-c"]:
+					get_next_parameter = [True,"-c"]
+				elif arg in ["-f"]:
+					interval = 0
+					quiet = True
+				elif arg in ["-i"]:
+					get_next_parameter = [True,"-i"]
+				elif arg in ["-q"]:
+					quiet = True
+				elif arg in ["-s"]:
+					get_next_parameter = [True,"-s"]
+				elif arg in ["-w"]:
+					get_next_parameter = [True,"-w"]
+				elif arg in ["-W"]:
+					get_next_parameter = [True,"-W"]
+				else:
+					if host == False:
+						host = arg
+					else:
+						return ["ping: cannot use '" + arg + "' as an address to ping as '" + host + "' has already been provided"]
+		if host == False:
+			return ["ping: usage error: Destination address required"]
+		if count == False:
+			count = 8
+		ICMP_ECHO_REPLY = 0
+		ICMP_ECHO_REQUEST = 8
+		seq_number = -1
+		start = time.time()
+		transmitted = [0,0]
+		times = [None,None,[]]
+		host = str(host)
+		hostname = host
+		payload_size = payload
+		payload = b'PING' * payload
+		payload = payload[:{True:payload_size,False:0}[payload_size > 0]]
+		try:
+			self.output_method(0,"PING " + host + " (" + socket.gethostbyname(host) + ") with " + str(len(payload)) + "(" + str(len(payload) + 28) + ") bytes of data")
+		except:
+			return ["ping: " + host + ": Temporary failure in name resolution"]
+		while True:
+			seq_number += 1
+			if seq_number == count:
+				break
+			if deadline != False:
+				if start + deadline <= time.time():
+					break
+			try:
+				s = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.getprotobyname('icmp'))
+				checksum = 0
+				pid = random.randint(10000,65535)
+				header = struct.pack('!BBHHH', ICMP_ECHO_REQUEST, 0, checksum, pid, seq_number)
+				packet = header + payload
+
+				for i in range(0, len(packet) - 1, 2):
+					checksum += struct.unpack('<H', packet[i:i + 2])[0]
+
+				if len(packet) % 2:
+					checksum += packet[-1]
+
+				checksum &= 0xFFFFFFFF
+				checksum = (checksum >> 16) + (checksum & 0xFFFF)
+				checksum += checksum >> 16
+				checksum = ~checksum & 0xFFFF
+				checksum = socket.htons(checksum)
+				packet = packet[:2] + struct.pack('!H', checksum) + packet[4:]
+				send_time = time.time()
+				s.sendto(packet, (hostname, 0))
+
+				current_timeout = timeout
+				while True:
+					select_time = time.time()
+					readable, _, _ = select.select([s], [], [], current_timeout)
+					if len(readable) == 0:
+						current_timeout -= time.time() - select_time
+						if current_timeout <= 0:
+							ping_response = [None,"timeout"]
+							break
+						time.sleep(0)
+					else:
+						reply_time = time.time()
+						packet, host = s.recvfrom(len(payload) + 28)
+						icmp_header = struct.unpack('!BBHHH', packet[20:28])
+						if icmp_header[0] == ICMP_ECHO_REPLY and icmp_header[3] == pid and icmp_header[4] == seq_number:
+							ip_header = struct.unpack('!BBHHHBBHII', packet[:20])
+							ping_response = [icmp_header[4],ip_header[5],reply_time - send_time]
+							if not quiet:
+								self.output_method(0,str(len(packet) - 28) + " bytes from " + socket.gethostbyaddr(host[0])[0] + " (" + host[0] + "): icmp_seq=" + str(seq_number+1) + " ttl=" + str(ip_header[5]) + " time=" + str(int((reply_time - send_time) * 1000)) + " ms")
+							break
+			except socket.error as e:
+				ping_response = [None]
+				continue
+			transmitted[0] += 1
+			if ping_response == [None,"timeout"]:
+				continue
+			elif ping_response[0] != None and len(ping_response) != 0:
+				transmitted[1] += 1
+				if times[0] == None or ping_response[2] < times[0]:
+					times[0] = ping_response[2]
+				if times[1] == None or ping_response[2] > times[1]:
+					times[1] = ping_response[2]
+				times[2].append(ping_response[2])
+			else:
+				transmitted[0] -= 1
+			time.sleep(interval)
+		if transmitted[0] in [None,0] and transmitted[1] in [None,0]:
+			packet_ratio = 0
+		else:
+			packet_ratio = 100 - (float(int(abs((float(transmitted[1])/float(transmitted[0])*100)) * 1000))/1000)
+			if packet_ratio.is_integer():
+				packet_ratio = int(packet_ratio)
+			if transmitted[1] < transmitted[0] and packet_ratio == 0:
+				packet_ratio = float(0.001)
+			elif transmitted[1] >= 1 and packet_ratio == 100:
+				packet_ratio = float(99.999)
+		response.append("")
+		response.append("--- " + hostname + " statistics ---")
+		response.append(str(transmitted[0]) + " packet" + {True:"s",False:""}[transmitted[0] > 1] + " transmitted, " + str(transmitted[1]) + " received, " + str(packet_ratio) + "% packets lost, time " + str(int((time.time()-start)*1000)) + "ms")
+		if not (transmitted[0] in [None,0] or transmitted[1] in [None,0]):
+			response.append("rtt min/avg/max/mdev = " + str(float(int(times[0]*1000))/1000) + "/" + str(float(int(sum(times[2])/len(times[2])*1000))/1000) + "/" + str(float(int(times[1]*1000))/1000) + "/" + str(float(int(sum([abs(time-(sum(times[2])/len(times[2]))) for time in times[2]])/len(times[2])*1000))/1000) + " ms")
+		return response
 
 	def wget(self,args=[]):
 		response = []
