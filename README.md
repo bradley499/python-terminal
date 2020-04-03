@@ -22,7 +22,7 @@ This project is aimed to be used in an encapsulated environment (although it is 
  + mv
  + cp
  - ps
- - ping
+ + ping
  + pwd
  + useradd
  + groupadd
