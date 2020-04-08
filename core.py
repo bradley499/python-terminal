@@ -6,7 +6,6 @@ import json
 import threading
 import system
 import version
-import urllib
 import time
 import datetime
 import math
@@ -18,7 +17,6 @@ import hashlib
 import binascii
 import random
 import re
-import tarfile
 from pathlib import Path
 
 class core(threading.Thread):
@@ -42,7 +40,7 @@ class core(threading.Thread):
 		threading.Thread.__init__(self)
 
 	def set_all_command_bases(self, args=[]):
-		self.command_bases = {"pwd":[self.get_display_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"clear":[self.clear,["null"],False,False,False],"echo":[self.echo,["join/void"," "],False,False,False],"touch":[self.touch,["join/void"," "],False,False,False],"alias":[self.alias,["join/void","\n"],False,False,True],"login":[self.login,["join/void","\n"],False,False,False],"logout":[self.logout,["join/void","\n"],False,False,False],"passwd":[self.passwd,["join/void","\n"],False,False,False],"useradd":[self.useradd,["join/void","\n"],False,False,False],"groupadd":[self.groupadd,["join/void","\n"],False,False,False],"id":[self.id,["join/void"," "],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"ping":[self.ping,["join/void","\n"],False,True,True],"wget":[self.wget,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
+		self.command_bases = {"pwd":[self.get_display_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"clear":[self.clear,["null"],False,False,False],"echo":[self.echo,["join/void"," "],False,False,False],"touch":[self.touch,["join/void"," "],False,False,False],"alias":[self.alias,["join/void","\n"],False,False,True],"login":[self.login,["join/void","\n"],False,False,False],"logout":[self.logout,["join/void","\n"],False,False,False],"shutdown":[self.shutdown,["join/void","\n"],False,False,False],"passwd":[self.passwd,["join/void","\n"],False,False,False],"useradd":[self.useradd,["join/void","\n"],False,False,False],"groupadd":[self.groupadd,["join/void","\n"],False,False,False],"id":[self.id,["join/void"," "],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"ping":[self.ping,["join/void","\n"],False,True,True],"wget":[self.wget,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
 		return True
 
 	def get_all_command_bases(self, args=[]):
@@ -83,14 +81,18 @@ class core(threading.Thread):
 		self.change_directory(["/"])
 		if unpack:
 			self.output_method(1,"Unpacking file system...     ")
-			try:
-				tar = tarfile.open(self.rel_base_directory+"/sys/sd0.tar", "r:")
-				tar.extractall()
-				tar.close()
+			if True:
+				import fs
+				for file in fs.vfs:
+					if file[1] == True:
+						self.create_directory([file[0]])
+					else:
+						with open(self.base_directory+file[0],"w") as vfs:
+							vfs.write(file[1].decode())
 				self.output_method(0,"[Success]")
-			except:
+			else:
 				self.output_method(0,"[Failed]")
-				raise SystemExit()
+				raise SystemExit("exit")
 		self.output_method(1,"Discovering environments...  ")
 		invalid_conf_files = []
 		if self.change_directory(["/etc"]) != None:
@@ -246,13 +248,38 @@ class core(threading.Thread):
 						shadow_file.write(user_requirements["hostname"])
 					self.output_method(0,"[Success]")
 					self.user = user_requirements["LOGIN"]
-					self.group = [int(system_usergroup_id["root"]),[]]
+					if os.path.exists(self.base_directory + "/etc/passwd"):
+						uids = self.concatenate(["/etc/passwd"])
+						for uid in uids:
+							uid = uid.split(":")
+							if len(uid) == 5:
+								uid.pop()
+								if uid[3].isdigit():
+									if uid[2].isdigit():
+										uid[2] = int(uid[2])
+										uid = [int(uid.pop(3)),str(uid.pop(0)),uid]
+										uid.append(uid[2].pop(0))
+										uid[2] = uid[2][0]
+										uid = tuple(uid)
+										valid_uids.append(uid)
+					uid_exists = -1
+					while uid_exists < 0:
+						for uid in valid_uids:
+							if uid[1] == self.user:
+								uid_exists = uid
+								break
+						if uid_exists == -1:
+							uid_exists = 0
+						elif type(uid_exists) == tuple:
+							break
+					self.group = [int(system_usergroup_id["root"]),(uid_exists[0],uid_exists[2],uid_exists[3])]
 					self.alias(["$USER","'" + user_requirements["LOGIN"] + "'","$LOGNAME","'" + user_requirements["LOGIN"] + "'"])
 				else:
 					self.output_method(0,"[Failed]")
 			except ProcessLookupError:
 				self.output_method(0,"[Failed]")
-			self.output_method(0,"")
+			for x in range(0,5):
+				self.output_method(0,"")
 			self.welcome()
 		if self.user == None:
 			self.output_method(0,"")
@@ -521,6 +548,42 @@ class core(threading.Thread):
 		self.output_method(0,"")
 		raise SystemExit("logout")
 		return None
+
+	def shutdown(self,args=[]):
+		reset = False
+		confirmed = False
+		for arg in args:
+			if arg in ["--reset"]:
+				reset = True
+			elif arg in ["--confirm"]:
+				confirmed = True
+			else:
+				raise ValueError(arg)
+		if reset:
+			valid = False
+			for group in self.sys_groups.values():
+				if group == self.group[1][1]:
+					valid = True
+					break
+			if not valid:
+				return ["A privileged account is required to complete this action!"]
+			if confirmed:
+				self.output_method(1,"Resetting system... ")
+				self.change_directory(["/"])
+				self.remove(["*","-r","-v"])
+				try:
+					os.rmdir(self.base_directory)
+					self.output_method(0,"[Done]")
+				except:
+					self.output_method(0,"[Failed]")
+			else:
+				return ["To reset your system you must also include --confirm"]
+		self.output_method(0,"Shutting down...")
+		try:
+			self.logout()
+		except:
+			pass
+		raise SystemExit("exit")
 
 	def set_proc(self,pid):
 		self.process_id = pid
@@ -1279,7 +1342,7 @@ class core(threading.Thread):
 				return response
 			to_copy_default = [{True:"/",False:to_copy_default_loc.rstrip("/")}[to_copy_default_loc.rstrip("/") == "" and self.change_directory([current_active_directory])==None] for to_copy_default_loc in to_copy_default if self.change_directory([to_copy_default_loc]) == None]
 			self.change_directory([current_active_directory])
-			to_copy_tree = sorted(to_copy_tree,key=lambda x: Path(x[0]))
+			to_copy_tree = sorted(to_copy_tree)
 			base_copy = None
 			copy_directories = []
 			to_copy_tree = [x for i, x in enumerate(to_copy_tree) if i == to_copy_tree.index(x)]
@@ -1708,7 +1771,7 @@ class core(threading.Thread):
 			if len(to_remove_tree) > 3 and prompt_3_plus:
 				if self.input_method(1,"rm: remove " + str(len(to_remove_tree)) + " arguments recursively? ")[0] != "y":
 					return None
-			to_remove_tree = sorted(to_remove_tree,key=lambda x: Path(x[0]),reverse=True)
+			to_remove_tree = sorted(to_remove_tree,reverse=True)
 			base_remove = None
 			remove_directories = []
 			current_directory_del = None

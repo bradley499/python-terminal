@@ -1,0 +1,12 @@
+NAME
+	shutdown
+SYNOPSIS
+	shutdown [OPTION]
+ABOUT
+	power-off the machine
+DESCRIPTION
+	Shutdown may be used to power-off or reset the machine.
+	--reset
+		Use to reset and remove all content from the machine. Must be used in conjunction with --confirm to initiate system reset.
+	--confirm
+		Used to verify the presence of --reset when required. 

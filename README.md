@@ -14,6 +14,7 @@ This project is aimed to be used in an encapsulated environment (although it is 
  + ls
  + login
  + logout
+ + shutdown
  + mkdir
  + rmdir
  + link
@@ -41,6 +42,9 @@ This project is aimed to be used in an encapsulated environment (although it is 
 
 #### How to run
 Simply execute the file named ```terminal.py``` to run the program.
+
+#### How to preconfigure file system
+All files within the ```sys/``` directory are as presented in their default layout, and changes made to the layout of any content nested within the directory structure needs to be updates before being run within the Python terminal; this can be done by executing the file ```mkfs.py``` which builds the file structure from ```sys/``` directory and stores the contents into fs.py to be loaded when setting up the emulation.
 
 #### Future plans
 * Add support for the Linux/Unix `chmod` command to be mimicked
