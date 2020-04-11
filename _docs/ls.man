@@ -10,6 +10,8 @@ DESCRIPTION
 		do not ignore entries starting with
 	-A, --almost-all
 		do not list implied . and ..
+	--color[=WHEN]
+    	colorize the output; WHEN can be 'always' (default if omitted), 'auto', or 'never'
 	-r, --reverse
 		reverse order while sorting
 	-p
