@@ -1,0 +1,9 @@
+NAME
+	clear
+SYNOPSIS
+	clear
+ABOUT
+	clear the terminal screen
+DESCRIPTION
+	Clears your screen if this is possible, including its scrollback buffer.
+	Writes to the standard output.

@@ -1,0 +1,15 @@
+NAME
+	login
+SYNOPSIS
+	login [OPTION] username
+ABOUT
+	begin session on the system
+DESCRIPTION
+	The login program is used to establish a new session with the system. It is normally invoked automatically by responding to the login: prompt on the user's terminal.
+	The user is then prompted for a password, where appropriate. Echoing is disabled to prevent revealing the password. Only a small number of password failures are permitted before login exits and the communications link is severed.
+	Your user and group ID will be set according to their values in the /etc/passwd file. The value for $USER, $LOGNAME are set according to the appropriate fields in the password entry.
+	-f
+		Do not perform authentication, user is preauthenticated.
+		Note: In that case, username is mandatory.
+	-p
+		Preserve environment.

@@ -1,0 +1,18 @@
+NAME
+	grep
+SYNOPSIS
+	grep [OPTION]... PATTERNS
+ABOUT
+	print lines that match patterns
+DESCRIPTION
+	grep searches for PATTERNS in the piped input. PATTERNS provided to grep will be returned with each line that matches a pattern.
+	-c, --count
+		Suppress normal output; instead print a count of matching lines for each input file.
+	-i, --ignore-case
+		Ignore case distinctions, so that characters that differ only in case match each other.
+	-m NUM, --max-count NUM
+		Stop reading a file after NUM matching lines. When the -c or --count option is also used, grep does not output a count greater than NUM.
+	-q, --quiet, --silent
+		Quiet; do not write anything to standard output. Exit immediately with zero status if any match is found, even if an error was detected.
+	-v, --invert-match
+		Invert the sense of matching, to select non-matching lines.

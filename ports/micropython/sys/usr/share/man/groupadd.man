@@ -1,0 +1,18 @@
+NAME
+	groupadd
+SYNOPSIS
+	groupadd [OPTION] LOGIN
+ABOUT
+	create a new group
+DESCRIPTION
+	The groupadd command creates a new group account using the values specified on the command line plus the default values from the system. The new group will be entered into the system files as needed.
+	-g, --gid
+		The numerical value of the group's ID. This value must be unique, unless the -o option is used. The value must be non-negative. The default is to use the smallest ID value greater than or equal to GID_MIN and greater than every other group.
+		See also the -r option and the GID_MAX description.
+	-o, --non-unique
+		This option permits to add a group with a non-unique GID.
+	-K, --key
+		Overrides /etc/login.defs defaults (GID_MIN, GID_MAX and others).
+	-r, --system
+		Create a system group.
+		The numeric identifiers of new system groups are chosen in the SYS_GID_MIN-SYS_GID_MAX range, defined in login.defs, instead of GID_MIN-GID_MAX.

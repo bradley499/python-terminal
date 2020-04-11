@@ -1,0 +1,10 @@
+NAME
+	man
+SYNOPSIS
+	man [whatis options] page...
+ABOUT
+	an interface to the on-line reference manuals
+DESCRIPTION
+	The man command is used as the system's manual pager. Each page argument given to man is normally the name of a program, utility or function. The manual page associated with each of these arguments is then found and displayed.
+	-f, --what-is
+		Display a short description from the manual page, if available.

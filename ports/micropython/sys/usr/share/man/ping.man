@@ -1,0 +1,22 @@
+NAME
+	ping
+SYNOPSIS
+	ping [OPTION]... {DESTINATION}
+ABOUT
+	send ICMP ECHO_REQUEST to network hosts
+DESCRIPTION
+	ping uses the ICMP protocol's mandatory ECHO_REQUEST datagram to elicit an ICMP ECHO_RESPONSE from a host or gateway. ECHO_REQUEST datagrams ("pings") have an IP and ICMP header, followed by a struct timeval and then an arbitrary number of "pad" bytes used to fill out the packet.
+	-c
+		Stop after sending count ECHO_REQUEST packets. With deadline option, ping waits for count ECHO_REPLY packets, until the timeout expires.
+	-f
+		Flood ping. If interval is not given, it sets interval to zero and outputs packets as fast as they come back or one hundred times per second, whichever is more. Also set output to quiet.
+	-i
+		Wait interval seconds between sending each packet. The default is to wait for one second between each packet normally, or not to wait in flood mode. Only super-user may set interval to values less 0.2 seconds.
+	-q
+		Quiet output. Nothing is displayed except the summary lines at startup time and when finished.
+	-s
+		Specifies the number of data bytes to be sent. The default is 56, which translates into 64 ICMP data bytes when combined with the 8 bytes of ICMP header data.
+	-w
+		Specify a timeout, in seconds, before ping exits regardless of how many packets have been sent or received. In this case ping does not stop after count packet are sent, it waits either for deadline expire or until count probes are answered.
+	-W
+		Time to wait for a response, in seconds.

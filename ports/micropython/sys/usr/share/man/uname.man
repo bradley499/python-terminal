@@ -1,0 +1,18 @@
+NAME
+	uname
+SYNOPSIS
+	uname
+ABOUT
+	print system information
+DESCRIPTION
+	Print certain system information.
+	-a, --all
+		print  all  information
+	-n, --nodename
+		print the network node hostname
+	-r, --kernel-release
+		print the kernel release
+	-s, --kernel-name
+		print the kernel name
+	-v, --kernel-version
+		print the kernel version

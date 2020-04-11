@@ -1,0 +1,18 @@
+NAME
+	uniq
+SYNOPSIS
+	uniq [OPTION]...
+ABOUT
+	report or omit repeated lines
+DESCRIPTION
+	Filter adjacent matching lines from piped input.
+	With no options, matching lines are merged to the first occurrence.
+	Mandatory arguments to long options are mandatory for short options too.
+	-c, --count
+		prefix lines by the number of occurrences
+	-d, --repeated
+		only print duplicate lines, one for each group
+	-i, --ignore-case
+		ignore differences in case when comparing
+	-u, --unique
+		only print unique lines
