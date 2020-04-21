@@ -40,7 +40,7 @@ class core(threading.Thread):
 		threading.Thread.__init__(self)
 
 	def set_all_command_bases(self, args=[]):
-		self.command_bases = {"pwd":[self.get_display_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"clear":[self.clear,["null"],False,False,False],"echo":[self.echo,["join/void"," "],False,False,False],"touch":[self.touch,["join/void"," "],False,False,False],"alias":[self.alias,["join/void","\n"],False,False,True],"login":[self.login,["join/void","\n"],False,False,False],"logout":[self.logout,["join/void","\n"],False,False,False],"shutdown":[self.shutdown,["join/void","\n"],False,False,False],"passwd":[self.passwd,["join/void","\n"],False,False,False],"useradd":[self.useradd,["join/void","\n"],False,False,False],"groupadd":[self.groupadd,["join/void","\n"],False,False,False],"id":[self.id,["join/void"," "],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"ping":[self.ping,["join/void","\n"],False,True,True],"wget":[self.wget,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
+		self.command_bases = {"pwd":[self.get_display_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"clear":[self.clear,["null"],False,False,False],"echo":[self.echo,["join/void"," "],False,False,False],"touch":[self.touch,["join/void"," "],False,False,False],"alias":[self.alias,["join/void","\n"],False,False,True],"unalias":[self.unalias,["join/void","\n"],False,False,True],"login":[self.login,["join/void","\n"],False,False,False],"logout":[self.logout,["join/void","\n"],False,False,False],"shutdown":[self.shutdown,["join/void","\n"],False,False,False],"passwd":[self.passwd,["join/void","\n"],False,False,False],"useradd":[self.useradd,["join/void","\n"],False,False,False],"groupadd":[self.groupadd,["join/void","\n"],False,False,False],"id":[self.id,["join/void"," "],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"ping":[self.ping,["join/void","\n"],False,True,True],"wget":[self.wget,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
 		return True
 
 	def get_all_command_bases(self, args=[]):
@@ -1992,6 +1992,19 @@ class core(threading.Thread):
 				response.append("alias " + alias_name + "='" + aliases + "'")
 		return response
 
+	def unalias(self,args=[]):
+		response = []
+		if len(args) == 1:
+			if args[0] in "-a":
+				self.alias_vars = {}
+				return []
+		for alias in args:
+			if alias in self.alias_vars.keys():
+				del self.alias_vars[alias]
+			else:
+				response.append("unalias: " + alias + ": not found")
+		return response
+
 	def grep(self,args=[]):
 		if self.pipe_in == None:
 			return ["grep: missing piped input stream"]
@@ -2749,7 +2762,7 @@ def terminal_parse(command = "", output = True, terminal = False):
 				return str(command[0]) + ": Command not found!"
 			else:
 				if command_bases[command[0]][4]:
-					command = parser_split(original_command,False,alias)
+					command = parser_split(original_command,False,{})
 				piped_commands.append(command)
 		del commands
 		end_of_pipe = len(piped_commands)

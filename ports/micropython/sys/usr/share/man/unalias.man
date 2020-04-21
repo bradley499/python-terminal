@@ -1,0 +1,10 @@
+NAME
+	unalias
+SYNOPSIS
+	unalias [OPTION] [names]
+ABOUT
+	Remove aliases
+DESCRIPTION
+	Remove each NAME from the list of defined aliases.
+	-a
+		remove all alias definitions

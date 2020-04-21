@@ -4,7 +4,7 @@ This is a project that emulates standard Linux/Unix commands along with associat
 This project is aimed to be used in an encapsulated environment (although it is not necessary). And shall mimic basic/key Linux/Unix commands, the project is currently aiming to mimic the following commands (+ implemented / - not implemented yet):
  ```diff
  + alias
- - unalias
+ + unalias
  + cat 
  + cd
  + exit
