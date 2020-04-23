@@ -36,11 +36,12 @@ class core(threading.Thread):
 		self.user = None
 		self.group = None
 		self.sys_groups = {}
+		self.buffer = 512
 		self.set_cwd(self.rel_base_directory)
 		threading.Thread.__init__(self)
 
 	def set_all_command_bases(self, args=[]):
-		self.command_bases = {"pwd":[self.get_display_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"clear":[self.clear,["null"],False,False,False],"echo":[self.echo,["join/void"," "],False,False,False],"touch":[self.touch,["join/void"," "],False,False,False],"alias":[self.alias,["join/void","\n"],False,False,True],"unalias":[self.unalias,["join/void","\n"],False,False,True],"login":[self.login,["join/void","\n"],False,False,False],"logout":[self.logout,["join/void","\n"],False,False,False],"shutdown":[self.shutdown,["join/void","\n"],False,False,False],"passwd":[self.passwd,["join/void","\n"],False,False,False],"useradd":[self.useradd,["join/void","\n"],False,False,False],"groupadd":[self.groupadd,["join/void","\n"],False,False,False],"id":[self.id,["join/void"," "],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"ping":[self.ping,["join/void","\n"],False,True,True],"wget":[self.wget,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
+		self.command_bases = {"pwd":[self.get_display_cwd,["string"],False,False,False],"ls":[self.ls,["join"," "],False,False,False],"uname":[self.uname,["join"," "],False,False,False],"hostname":[self.get_hostname,["string"],False,False,False],"whoami":[self.who_am_i,["string"],False,False,False],"cd":[self.change_directory,["string/void"],False,False,False],"mkdir":[self.create_directory,["join/void","\n"],False,False,False],"rmdir":[self.remove_directory,["join/void","\n"],False,False,False],"cat":[self.concatenate,["join","\n"],False,False,False],"ed":[self.editor,["join/void","\n"],False,False,False],"head":[self.head,["join","\n"],False,False,False],"tail":[self.tail,["join","\n"],False,False,False],"cp":[self.copy,["join/void","\n"],False,False,False],"mv":[self.move,["join/void","\n"],False,False,False],"link":[self.link,["string"],False,False,False],"unlink":[self.unlink,["string"],False,False,False],"rm":[self.remove,["join/void","\n"],False,False,False],"clear":[self.clear,["null"],False,False,False],"echo":[self.echo,["join/void"," "],False,False,False],"touch":[self.touch,["join/void"," "],False,False,False],"alias":[self.alias,["join/void","\n"],False,False,True],"unalias":[self.unalias,["join/void","\n"],False,False,True],"login":[self.login,["join/void","\n"],False,False,False],"logout":[self.logout,["join/void","\n"],False,False,False],"shutdown":[self.shutdown,["join/void","\n"],False,False,False],"passwd":[self.passwd,["join/void","\n"],False,False,False],"useradd":[self.useradd,["join/void","\n"],False,False,False],"groupadd":[self.groupadd,["join/void","\n"],False,False,False],"id":[self.id,["join/void"," "],False,False,False],"grep":[self.grep,["join/void","\n"],False,True,True],"uniq":[self.uniq,["join/void","\n"],False,True,True],"sort":[self.sort,["join/void","\n"],False,True,True],"ping":[self.ping,["join/void","\n"],False,True,True],"wget":[self.wget,["join/void","\n"],False,True,True],"help":[self.help,["join","\n"],False,False,False],"man":[self.man,["join","\n"],False,False,False]}
 		return True
 
 	def get_all_command_bases(self, args=[]):
@@ -578,11 +579,20 @@ class core(threading.Thread):
 					self.output_method(0,"[Failed]")
 			else:
 				return ["To reset your system you must also include --confirm"]
-		self.output_method(0,"Shutting down...")
+		self.output_method(1,"Removing temporary filesystem... ")
+		if self.change_directory(["/tmp"]) == None:
+			if len(self.remove(["/tmp","-r"])) == 0:
+				self.output_method(0,"[Success]")
+			else:
+				self.output_method(0,"[Failed]")
+		else:
+				self.output_method(0,"[Success]")
+		self.output_method(1,"Logging out...")
 		try:
 			self.logout()
 		except:
 			pass
+		self.output_method(0,"Shutting down...")
 		raise SystemExit("exit")
 
 	def set_proc(self,pid):
@@ -1484,6 +1494,221 @@ class core(threading.Thread):
 		response.extend(output_error_stream)
 		return response
 
+	def editor(self,args=[]):
+		file = False
+		restricted = False
+		verbose = False
+		prompt = [False,"*"]
+		for arg in args:
+			if prompt == True:
+				prompt = [True,arg]
+			elif arg.startswith("-"):
+				if arg in ["-p","--prompt"]:
+					prompt[0] = True
+					if type(prompt) == list:
+						if arg == "-p":
+							prompt = prompt[1]
+						elif arg == "--prompt":
+							prompt = True
+				elif arg in ["-r","--restricted"]:
+					restricted = True
+				elif arg in ["-v","--verbose"]:
+					verbose = True
+				else:
+					raise ValueError(arg)
+			elif file == False:
+				file = arg
+			else:
+				return ["ed: '" + file[1] + "' has already been defined as the file to edit"]
+		if prompt == True:
+			return ["ed: option '--prompt' requires an argument"]
+		while True:
+			if type(prompt) == list:
+				if prompt[0]:
+					prompt = prompt[1]
+					break
+				else:
+					prompt = ""
+			break
+		if file != False:
+			file = self.directory_restrict(self.dir_abspath(file))[1]
+			if restricted:
+				if "/".join(file.split("/")[0:-1]) != {True:"",False:self.get_display_cwd()}[self.get_display_cwd() == "/"]:
+					return ["ed: Can only edit files in the current directory"]
+			current_directory = self.get_display_cwd()
+			if self.change_directory([file]) == None:
+				self.change_directory([current_directory])
+				return ["ed: Is a directory"]
+			self.create_directory(["/tmp"])
+			if os.path.isfile(self.base_directory + file):
+				self.remove(["/tmp/ed"])
+				self.link([file,"/tmp/ed"])
+			else:
+				return ["ed: No such file or directory"]
+		else:
+			self.create_directory(["/tmp"])
+			self.remove(["/tmp/ed"])
+			self.touch(["/tmp/ed"])
+		operation = 0
+		mode = [False,False]
+		addition_mode = 0
+		helpful = verbose
+		error = False
+		recent_text = False
+		while True:
+			if operation >= 0:
+				if operation == 0:
+					self.touch(["/tmp/ed"])
+					char_count = len("\n".join(self.concatenate(["/tmp/ed"])))
+					if char_count > 0:
+						try:
+							if self.concatenate(["/tmp/ed"])[-1] != "":
+								self.output_method(0,"Newline appended")
+						except:
+							pass
+					self.output_method(0,char_count)
+					operation = -1
+				elif operation == 1:
+					written = False
+					additions = 0
+					while True:
+						text = self.input_method(0,"")
+						if text == ".":
+							operation = -1
+							break
+						recent_text = text
+						additions += 1
+						with open(self.base_directory + "/tmp/ed",mode[0]+"+") as tmp_file:
+							if mode[0] == "r":
+								tmp_file = tmp_file.readlines()
+								address_buffer = 0
+								contents = []
+								contents_buffer = 5
+								if mode[1] == -1:
+									mode[1] = len(tmp_file) - 1
+									if mode[1] < 0:
+										mode[1] = 0
+								elif written:
+									mode[1] += 1
+								with open(self.base_directory + "/tmp/ed.2","w") as tmp_file2:
+									written = True
+									for address in tmp_file:
+										if mode[1] == address_buffer:
+											contents.append(text)
+										if len(contents) == contents_buffer or mode[1] - 1 == address_buffer:
+											tmp_file2.write({True:"\n",False:""}[address_buffer > contents_buffer] + "\n".join(contents))
+											contents = []
+										contents.append(address.rstrip())
+										address_buffer += 1
+									if len(contents) > 0:
+										tmp_file2.write({True:"\n",False:""}[address_buffer > contents_buffer] + "\n".join(contents))
+								self.remove(["/tmp/ed"])
+								self.move(["/tmp/ed.2","/tmp/ed"])
+							elif mode[0] == "a":
+								if written:
+									text = "\n" + text
+								else:
+									tmp_file.seek(0)
+									if len(tmp_file.read(100)) > 0:
+										text = "\n" + text
+									written = True
+								tmp_file.write(text)
+					addition_mode += additions
+				elif operation in [2,3]:
+					char_count = len("\n".join(self.concatenate(["/tmp/ed"])))
+					if char_count == 0:
+						error = "Invalid address"
+					else:
+						if operation == 2:
+							if recent_text != False:
+								self.output_method(0,recent_text)
+							else:
+								error = "Invalid address"
+						elif operation == 3:
+							with open(self.base_directory + "/tmp/ed","r") as tmp_file:
+								for line in tmp_file.readlines():
+									self.output_method(0,line.rstrip())
+					operation = -1
+				continue
+			if error != False:
+				self.output_method(0,"?")
+				if helpful != False:
+					self.output_method(0,error)
+					if helpful == None:
+						helpful = False
+					error = False
+			mode = [self.input_method(1,prompt),None]
+			if len(mode[0].strip()) == 0:
+				continue
+			if mode[0] == "a":
+				mode[0] = "a"
+				operation = 1
+				continue
+			elif mode[0] == "H":
+				if helpful == None:
+					helpful = False
+				helpful = not helpful
+				continue
+			elif mode[0] == "h":
+				if helpful != True:
+					helpful = None
+				continue
+			elif mode[0] == "w":
+				if file == False:
+					error = "No current filename"
+				else:
+					self.remove([file])
+					self.link(["/tmp/ed",file])
+					addition_mode = 0
+				continue
+			elif mode[0] == "Q":
+				break
+			elif mode[0] == "P":
+				prompt = "*"
+				continue
+			elif mode[0] == "p":
+				operation = 2
+				continue
+			elif mode[0] == ",p":
+				operation = 3
+				continue
+			if "f" in list(mode[0]):
+				if mode[0][0] == "f":
+					if mode[0].startswith("f "):
+						mode[1] = mode[0][2:]
+						if len(mode[1]) > 0:
+							file = mode[1]
+							self.output_method(0,file)
+							continue
+					error = "No current filename"
+					continue
+			if "i" in list(mode[0]):
+				if mode[0] == "i":
+					mode[0] = "r"
+					mode[1] = -1
+					operation = 1
+				elif mode[0][-1] == "i":
+					mode[1] = mode[0][0:-1]
+					mode[0] = "r"
+					if mode[1].isdigit():
+						mode[1] = int(mode[1])
+					else:
+						error = "Invalid command suffix"
+						continue
+				else:
+					continue
+				operation = 1
+				continue
+			if mode[0] == "q":
+				if addition_mode == 0:
+					break
+				else:
+					self.output_method(0,"Warning: buffer modified")
+			else:
+				self.output_method(0,"Invalid address")
+		self.remove(["/tmp/ed"])
+		return []
+
 	def tail(self,args=[]):
 		return self.head(args,True)
 
@@ -1634,7 +1859,7 @@ class core(threading.Thread):
 			if len(files) == 1:
 				return "link: missing operand after '" + files[0] + "'"
 			elif len(files) == 2:
-				files_raw = [files][0]
+				files_raw = [[files][0][0],[files][0][1]]
 				if self.stable:
 					files[0] = (self.base_directory + os.path.abspath({True:"",False:(self.get_display_cwd() + "/").replace("//","/")}[files[0].startswith("/")] + files[0])).replace("//","/")
 					files[1] = (self.base_directory + os.path.abspath({True:"",False:(self.get_display_cwd() + "/").replace("//","/")}[files[1].startswith("/")] + files[1])).replace("//","/")
@@ -1650,7 +1875,17 @@ class core(threading.Thread):
 						if os.path.exists(files[1]):
 							return "link: cannot create link from '" + files_raw[0] + "' as the file '" + files_raw[1] + "' exists"
 						else:
-							os.link(files[0],files[1])
+							if os.path.isdir(files[0]):
+								self.create_directory([files[1],"-p"])
+							else:
+								with open(files[0],"rb") as source:
+									with open(files[1],"wb") as destination:
+										while True:
+											piece = source.read(self.buffer)
+											if len(piece) == 0:
+												break
+											else:
+												destination.write(piece)
 							return None
 					elif os.path.isdir(files[0]):
 						return "link: cannot create link from '" + files_raw[0] + "' to '" + files_raw[1] + "'"

@@ -1,0 +1,14 @@
+NAME
+	ed
+SYNOPSIS
+	ed [OPTION]... [FILE]
+ABOUT
+	line-oriented text editor
+DESCRIPTION
+	The ed program is a line-oriented text editor. It is used to create, display, modify and otherwise manipulate text files. Ed in restricted mode can only edit files in the current directory. Ed is the 'standard' text editor in the sense that it is the original editor for Unix, and thus widely available.
+	-p, --prompt[=STRING]
+		use STRING as an interactive prompt
+	-r, --restricted
+		run in restricted mode
+	-v, --verbose
+		be verbose; equivalent to the 'H' command
