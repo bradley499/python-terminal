@@ -8,7 +8,7 @@ This project is aimed to be used in an encapsulated environment (although it is 
  + cat 
  + cd
  + exit
- - ed
+ + ed
  - find
  + head
  + tail
