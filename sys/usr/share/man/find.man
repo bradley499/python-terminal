@@ -1,0 +1,8 @@
+NAME
+	find
+SYNOPSIS
+	find [starting-point...]
+ABOUT
+	search for files in a directory hierarchy
+DESCRIPTION
+	The find program searches the directory tree rooted at each given starting-point by evaluating the given expression from left to right. If no starting-point is specified, '.'' is assumed.

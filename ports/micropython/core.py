@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # core.py
 
-import os
+import uos as os
 import os.path
 import json
 import system
@@ -38,7 +38,7 @@ class core():
 		self.set_cwd(self.rel_base_directory)
 
 	def set_all_command_bases(self, args=[]):
-		self.command_bases = {"pwd":[self.get_display_cwd,["string"],False,False],"ls":[self.ls,["join"," "],False,False],"uname":[self.uname,["join"," "],False,False],"hostname":[self.get_hostname,["string"],False,False],"whoami":[self.who_am_i,["string"],False,False],"cd":[self.change_directory,["string/void"],False,True],"mkdir":[self.create_directory,["join/void","\n"],False,True],"rmdir":[self.remove_directory,["join/void","\n"],False,True],"cat":[self.concatenate,["join","\n"],False,True],"ed":[self.editor,["join/void","\n"],False,False],"head":[self.head,["join","\n"],False,True],"tail":[self.tail,["join","\n"],False,True],"cp":[self.copy,["join/void","\n"],False,True],"mv":[self.move,["join/void","\n"],False,True],"link":[self.link,["string"],False,True],"unlink":[self.unlink,["string"],False,True],"rm":[self.remove,["join/void","\n"],False,True],"clear":[self.clear,["null"],False,False],"echo":[self.echo,["join/void"," "],False,False],"touch":[self.touch,["join/void"," "],False,True],"alias":[self.alias,["join/void","\n"],False,True],"unalias":[self.unalias,["join/void","\n"],False,True],"login":[self.login,["join/void","\n"],False,False],"logout":[self.logout,["join/void","\n"],False,False],"shutdown":[self.shutdown,["join/void","\n"],False,False],"passwd":[self.passwd,["join/void","\n"],False,True],"useradd":[self.useradd,["join/void","\n"],False,False],"groupadd":[self.groupadd,["join/void","\n"],False,False],"id":[self.id,["join/void"," "],False,False],"grep":[self.grep,["join/void","\n"],True,True],"uniq":[self.uniq,["join/void","\n"],True,True],"sort":[self.sort,["join/void","\n"],True,True],"wget":[self.wget,["join/void","\n"],True,True],"help":[self.help,["join","\n"],False,False],"man":[self.man,["join","\n"],False,False]}
+		self.command_bases = {"pwd":[self.get_display_cwd,["string"],False,False],"ls":[self.ls,["join"," "],False,False],"find":[self.find,["join","\n"],False,False],"uname":[self.uname,["join"," "],False,False],"hostname":[self.get_hostname,["string"],False,False],"whoami":[self.who_am_i,["string"],False,False],"cd":[self.change_directory,["string/void"],False,True],"mkdir":[self.create_directory,["join/void","\n"],False,True],"rmdir":[self.remove_directory,["join/void","\n"],False,True],"cat":[self.concatenate,["join","\n"],False,True],"ed":[self.editor,["join/void","\n"],False,False],"head":[self.head,["join","\n"],False,True],"tail":[self.tail,["join","\n"],False,True],"cp":[self.copy,["join/void","\n"],False,True],"mv":[self.move,["join/void","\n"],False,True],"link":[self.link,["string"],False,True],"unlink":[self.unlink,["string"],False,True],"rm":[self.remove,["join/void","\n"],False,True],"clear":[self.clear,["null"],False,False],"echo":[self.echo,["join/void"," "],False,False],"touch":[self.touch,["join/void"," "],False,True],"alias":[self.alias,["join/void","\n"],False,True],"unalias":[self.unalias,["join/void","\n"],False,True],"login":[self.login,["join/void","\n"],False,False],"logout":[self.logout,["join/void","\n"],False,False],"shutdown":[self.shutdown,["join/void","\n"],False,False],"passwd":[self.passwd,["join/void","\n"],False,True],"useradd":[self.useradd,["join/void","\n"],False,False],"groupadd":[self.groupadd,["join/void","\n"],False,False],"id":[self.id,["join/void"," "],False,False],"grep":[self.grep,["join/void","\n"],True,True],"uniq":[self.uniq,["join/void","\n"],True,True],"sort":[self.sort,["join/void","\n"],True,True],"wget":[self.wget,["join/void","\n"],True,True],"help":[self.help,["join","\n"],False,False],"man":[self.man,["join","\n"],False,False]}
 		return True
 
 	def get_all_command_bases(self, args=[]):
@@ -1241,6 +1241,18 @@ class core():
 				delimiters = ("","")
 			response.append(delimiters[0]+str(version.__release__)+delimiters[1])
 		return response
+
+	def find(self,args=[]):
+		directory = []
+		for arg in args:
+			directory.append(arg)
+		directory = directory or [""]
+		files = []
+		for source in directory:
+			rel_source = self.directory_restrict(self.dir_abspath(source))
+			for file in walk(rel_source[0]):
+				files.append((rel_source[1]+file[len(rel_source[0]):]).replace(self.get_display_cwd()+"/","",1).replace("//","/"))
+		return files
 
 	def move(self,args=[]):
 		files = []
@@ -3013,6 +3025,18 @@ def randint(min, max):
 	offset = random.getrandbits(30) // div
 	val = min + offset
 	return val
+
+def walk(directory = "."):
+	files = []
+	for contents in os.walk(directory):
+		for file in contents[2]:
+			if file in [".",".."]:
+				continue
+			file = contents[0]+"/"+file
+			files.append(file)
+			if os.path.isdir(file):
+				files.extend(walk(file))
+	return files
 
 def parser_split(string,posix=True,alias={}):
 	string = [char for char in string]
