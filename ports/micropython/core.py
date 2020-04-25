@@ -1246,12 +1246,24 @@ class core():
 		directory = []
 		for arg in args:
 			directory.append(arg)
-		directory = directory or [""]
+		directory = directory or ["."]
 		files = []
 		for source in directory:
+			host = source
+			if self.dir_abspath(source) == self.base_directory:
+				source = self.base_directory
+			else:
+				source = self.directory_restrict(self.get_cwd() + ("/" + source).replace("//","/"))[0]
 			rel_source = self.directory_restrict(self.dir_abspath(source))
 			for file in walk(rel_source[0]):
-				files.append((rel_source[1]+file[len(rel_source[0]):]).replace(self.get_display_cwd()+"/","",1).replace("//","/"))
+				file = self.directory_restrict(file)[1]
+				if rel_source[1] == self.get_display_cwd():
+					file = file.replace(self.get_display_cwd(),host)
+				else:
+					file = file.replace("/" + file,(host+"/").replace("//","/",-1),1).replace("//","/")
+					file = ((host + {True:"",False:"/"}[host[-1] == "/" or file[0] == "/"]).replace("//","/") + file).replace("//","/")
+#				file = file.replace((self.get_display_cwd() + "/").replace("//","/"),(host+"/").replace("//","/",-1),1)
+				files.append(file)
 		return files
 
 	def move(self,args=[]):

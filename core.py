@@ -1245,16 +1245,23 @@ class core(threading.Thread):
 		files = []
 		for source in directory:
 			host = source
-			source = self.directory_restrict(self.get_cwd() + ("/" + source).replace("//","/"))[0]
+			rel_source = self.directory_restrict(self.dir_abspath(source))[1]
+			if self.dir_abspath(source) == self.base_directory:
+				source = self.base_directory
+			else:
+				source = self.directory_restrict(self.get_cwd() + ("/" + source).replace("//","/"))[0]
 			source_files = [ 
 				self.directory_restrict(os.path.join(parent, name))[1]
 				for (parent, subdirs, files) in os.walk(source)
 				for name in files + subdirs
 			]
 			for file in source_files:
-				if file.startswith((self.get_display_cwd() + "/" + {True:"./",False:""}[host in [".","./"]]).replace("//","/")):
-					file = file.replace((self.get_display_cwd() + "/" + {True:"./",False:""}[host in [".","./"]]).replace("//","/"),"",1)
-				files.append((rel_source[1]+file[len(rel_source[0]):]).replace(self.get_display_cwd()+"/","",1).replace("//","/"))
+				if os.path.commonprefix([rel_source,self.get_display_cwd()]) == self.get_display_cwd():
+					file = file.replace(self.get_display_cwd()+"/"+host,host)
+				else:
+					file = file.replace("/" + file,(host+"/").replace("//","/",-1),1).replace("//","/")
+					file = ((host + {True:"",False:"/"}[host[-1] == "/" or file[0] == "/"]).replace("//","/") + file).replace("//","/")
+				files.append(file)
 		return files
 
 	def move(self,args=[]):
