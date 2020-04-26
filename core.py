@@ -707,10 +707,14 @@ class core(threading.Thread):
 					for password in password_hash:
 						password = password.split(":")
 						if len(password) >= 2:
+							original_password = password
+							password.pop(-1)
 							password_user = ":".join(password)
 							if password_user == user_login:
 								user_match = True
 								password = [password_user,npwd]
+							else:
+								password = original_password
 						passwords.append(":".join(password))
 					if not user_match:
 						passwords.append(user_login + ":" + npwd)

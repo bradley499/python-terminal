@@ -711,7 +711,7 @@ class core():
 					for password in password_hash:
 						password = password.split(":")
 						if len(password) >= 2:
-							password_user = ":".join(password)
+							password_user = ":".join(password[0:-1])
 							if password_user == user_login:
 								user_match = True
 								password = [password_user,npwd]
